@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import heapq
 from collections import Counter
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
 from pathlib import Path
 
 import regex as re
@@ -16,17 +14,6 @@ GPT2_PRETOKENIZATION_PATTERN = (
 
 Token = tuple[bytes, ...]
 Pair = tuple[bytes, bytes]
-IdPair = tuple[int, int]
-
-
-@dataclass(frozen=True)
-class _DescendingPairKey:
-    """Heap key that preserves BPE's max-count, max-lexicographic tie-break."""
-
-    pair: Pair
-
-    def __lt__(self, other: _DescendingPairKey) -> bool:
-        return self.pair > other.pair
 
 
 def train_bpe(
@@ -34,180 +21,35 @@ def train_bpe(
     vocab_size: int,
     special_tokens: list[str],
 ) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
-    """训练字节级 BPE tokenizer，并返回词表和按生成顺序排列的 merges。"""
+    """训练字节级 BPE tokenizer，并返回词表和按生成顺序排列的 merges。
+
+    该函数保留作业 Part 2 的朴素训练流程：
+    1. 读取输入语料。
+    2. 按 special token 切分文本，确保 merge 不会跨过 special token 的边界。
+    3. 使用 GPT-2 正则表达式对普通文本片段做预分词。
+    4. 将每个 pretoken 初始化为字节 token 序列。
+    5. 每轮全量统计相邻 token pair，选择最佳 pair 并执行 merge。
+    6. 基于初始字节 token、special token 和学习到的 merge 构建最终词表。
+    """
     normalized_special_tokens = validate_train_bpe_inputs(input_path, vocab_size, special_tokens)
     text = read_training_text(input_path)
     text_segments = split_on_special_tokens(text, normalized_special_tokens)
     word_counts = count_pretokens(text_segments)
-    return train_bpe_from_pretoken_counts(
-        word_counts=word_counts,
-        vocab_size=vocab_size,
-        special_tokens=normalized_special_tokens,
-    )
-
-
-def train_bpe_from_pretoken_counts(
-    word_counts: Mapping[bytes, int],
-    vocab_size: int,
-    special_tokens: Sequence[str],
-) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
-    """基于已统计好的 pretoken 频次训练字节级 BPE。
-
-    该入口用于大语料训练：调用方可以用多进程或流式方式先完成预分词计数，
-    然后复用这里的增量 pair 统计和 merge 逻辑。
-    """
-    normalized_special_tokens = list(dict.fromkeys(special_tokens))
-    minimum_vocab_size = 256 + len(normalized_special_tokens)
-    if vocab_size < minimum_vocab_size:
-        raise ValueError(
-            "vocab_size 至少需要等于 256 加上唯一 special token 的数量 "
-            f"({minimum_vocab_size})"
-        )
-
     token_counts = initialize_byte_tokens(word_counts)
     vocab = initialize_vocab(normalized_special_tokens)
     merges: list[Pair] = []
 
-    return train_bpe_from_token_counts(token_counts, vocab, merges, vocab_size)
-
-
-def train_bpe_from_token_counts(
-    token_counts: Counter[Token],
-    vocab: dict[int, bytes],
-    merges: list[Pair],
-    vocab_size: int,
-) -> tuple[dict[int, bytes], list[tuple[bytes, bytes]]]:
-    """使用增量 pair 索引训练 BPE merge。
-
-    朴素实现每轮 merge 都重新扫描所有 pretoken。这里维护 pair -> word 的倒排索引，
-    每次只更新包含当前 best pair 的 pretoken，避免 10k 词表训练时反复全量扫描。
-    """
-    word_tokens: list[list[int]] = []
-    word_weights: list[int] = []
-    pair_counts: dict[IdPair, int] = {}
-    pair_to_word_counts: dict[IdPair, dict[int, int]] = {}
-    heap: list[tuple[int, _DescendingPairKey, IdPair]] = []
-    token_to_id = {token: token_id for token_id, token in vocab.items()}
-
-    for token, count in token_counts.items():
-        if count <= 0:
-            continue
-        word_id = len(word_tokens)
-        token_ids = [token_to_id[part] for part in token]
-        word_tokens.append(token_ids)
-        word_weights.append(count)
-
-        for pair, occurrences in count_token_id_pairs(token_ids).items():
-            weighted_count = occurrences * count
-            pair_counts[pair] = pair_counts.get(pair, 0) + weighted_count
-            pair_to_word_counts.setdefault(pair, {})[word_id] = occurrences
-
-    for pair, count in pair_counts.items():
-        push_pair(heap, pair, count, vocab)
-
     while len(vocab) < vocab_size:
-        best_pair = pop_best_pair(heap, pair_counts, vocab)
-        if best_pair is None:
+        pair_counts = count_adjacent_pairs(token_counts)
+        if not pair_counts:
             break
 
-        left_id, right_id = best_pair
-        left_bytes = vocab[left_id]
-        right_bytes = vocab[right_id]
-        merged_token_id = len(vocab)
-        vocab[merged_token_id] = left_bytes + right_bytes
-        merges.append((left_bytes, right_bytes))
-
-        affected_word_ids = list(pair_to_word_counts.get(best_pair, {}).keys())
-        for word_id in affected_word_ids:
-            old_token_ids = word_tokens[word_id]
-            old_pair_counts = count_token_id_pairs(old_token_ids)
-            if best_pair not in old_pair_counts:
-                continue
-
-            word_weight = word_weights[word_id]
-            for pair, occurrences in old_pair_counts.items():
-                weighted_count = occurrences * word_weight
-                updated_count = pair_counts.get(pair, 0) - weighted_count
-                if updated_count > 0:
-                    pair_counts[pair] = updated_count
-                    push_pair(heap, pair, updated_count, vocab)
-                else:
-                    pair_counts.pop(pair, None)
-
-                word_map = pair_to_word_counts.get(pair)
-                if word_map is not None:
-                    word_map.pop(word_id, None)
-                    if not word_map:
-                        pair_to_word_counts.pop(pair, None)
-
-            new_token_ids = merge_token_id_pair(old_token_ids, best_pair, merged_token_id)
-            word_tokens[word_id] = new_token_ids
-
-            for pair, occurrences in count_token_id_pairs(new_token_ids).items():
-                weighted_count = occurrences * word_weight
-                updated_count = pair_counts.get(pair, 0) + weighted_count
-                pair_counts[pair] = updated_count
-                pair_to_word_counts.setdefault(pair, {})[word_id] = occurrences
-                push_pair(heap, pair, updated_count, vocab)
+        best_pair = select_best_pair(pair_counts)
+        token_counts = apply_merge(token_counts, best_pair)
+        merges.append(best_pair)
+        vocab[len(vocab)] = best_pair[0] + best_pair[1]
 
     return vocab, merges
-
-
-def count_token_id_pairs(token_ids: Sequence[int]) -> dict[IdPair, int]:
-    """统计单个 pretoken 内的相邻 token-id pair。"""
-    pair_counts: dict[IdPair, int] = {}
-    for index in range(len(token_ids) - 1):
-        pair = (token_ids[index], token_ids[index + 1])
-        pair_counts[pair] = pair_counts.get(pair, 0) + 1
-    return pair_counts
-
-
-def merge_token_id_pair(token_ids: Sequence[int], pair_to_merge: IdPair, merged_token_id: int) -> list[int]:
-    """按 BPE 规则从左到右合并非重叠 pair。"""
-    merged_token_ids: list[int] = []
-    index = 0
-    token_count = len(token_ids)
-
-    while index < token_count:
-        if index < token_count - 1 and (token_ids[index], token_ids[index + 1]) == pair_to_merge:
-            merged_token_ids.append(merged_token_id)
-            index += 2
-        else:
-            merged_token_ids.append(token_ids[index])
-            index += 1
-
-    return merged_token_ids
-
-
-def push_pair(
-    heap: list[tuple[int, _DescendingPairKey, IdPair]],
-    pair: IdPair,
-    count: int,
-    vocab: Mapping[int, bytes],
-) -> None:
-    """将 pair 的当前计数压入堆，旧计数通过 lazy deletion 处理。"""
-    if count <= 0:
-        return
-    pair_bytes = (vocab[pair[0]], vocab[pair[1]])
-    heapq.heappush(heap, (-count, _DescendingPairKey(pair_bytes), pair))
-
-
-def pop_best_pair(
-    heap: list[tuple[int, _DescendingPairKey, IdPair]],
-    pair_counts: Mapping[IdPair, int],
-    vocab: Mapping[int, bytes],
-) -> IdPair | None:
-    """弹出仍然有效的最高频 pair，并按字节字典序处理平局。"""
-    while heap:
-        negative_count, pair_key, pair = heapq.heappop(heap)
-        count = -negative_count
-        current_count = pair_counts.get(pair, 0)
-        if current_count != count:
-            continue
-        if pair_key.pair != (vocab[pair[0]], vocab[pair[1]]):
-            continue
-        return pair
-    return None
 
 
 def validate_train_bpe_inputs(
@@ -285,13 +127,6 @@ def initialize_vocab(special_tokens: Sequence[str]) -> dict[int, bytes]:
 
 def count_adjacent_pairs(token_counts: Counter[Token]) -> dict[Pair, int]:
     """统计相邻 BPE token pair，并按 pretoken 频次加权。"""
-    # 原始朴素版本：
-    # pair_counts: Counter[Pair] = Counter()
-    # for token, count in token_counts.items():
-    #     for left, right in zip(token, token[1:]):
-    #         pair_counts[(left, right)] += count
-    #
-    # 优化点：普通 dict + get 避免 Counter.__missing__；下标遍历避免 token[1:] 切片。
     pair_counts: dict[Pair, int] = {}
     for token, count in token_counts.items():
         for index in range(len(token) - 1):
@@ -301,9 +136,8 @@ def count_adjacent_pairs(token_counts: Counter[Token]) -> dict[Pair, int]:
 
 
 def select_best_pair(pair_counts: Mapping[Pair, int]) -> Pair:
-    """选择下一组要 merge 的 token pair。"""
+    """选择下一组要 merge 的 token pair：先比较频次，再按字节字典序打破平局。"""
     return max(pair_counts.items(), key=lambda item: (item[1], item[0]))[0]
-    # raise NotImplementedError("请实现 BPE pair 选择和平局处理逻辑。")
 
 
 def apply_merge(token_counts: Counter[Token], pair_to_merge: Pair) -> Counter[Token]:
@@ -313,9 +147,6 @@ def apply_merge(token_counts: Counter[Token], pair_to_merge: Pair) -> Counter[To
     merged_token = left_token + right_token
 
     for token, count in token_counts.items():
-        # 原始朴素版本会无条件创建 list 并逐项 append：
-        # merged_parts: list[bytes] = []
-        # 即使当前 token 不包含 pair_to_merge，也会产生大量无效分配。
         merged_parts: list[bytes] | None = None
         index = 0
         token_length = len(token)
@@ -342,4 +173,3 @@ def apply_merge(token_counts: Counter[Token], pair_to_merge: Pair) -> Counter[To
             merged_token_counts[merged_token_tuple] = merged_token_counts.get(merged_token_tuple, 0) + count
 
     return Counter(merged_token_counts)
-    # raise NotImplementedError("请实现 BPE merge 应用逻辑。")

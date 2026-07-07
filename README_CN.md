@@ -71,9 +71,10 @@ uv run pytest tests/test_train_bpe.py
 
 新增脚本 [train_bpe_tinystories.py](./cs336_basics/Part2/train_bpe_tinystories.py)，用于在完整 TinyStories
 训练集上训练最大词表大小为 10,000 的 byte-level BPE tokenizer，并显式加入
-`<|endoftext|>` special token。脚本复用
-[train_bpe.py](./cs336_basics/Part2/train_bpe.py) 中的预分词、special token 切分和增量 BPE
-训练函数；针对 2.1GB 训练文件，脚本按 `<|endoftext|>` 文档边界流式切分，并使用多进程并行完成预分词计数。
+`<|endoftext|>` special token。该脚本独立于
+[train_bpe.py](./cs336_basics/Part2/train_bpe.py)：它复制了原始 BPE 的基础校验、special token
+切分、GPT-2 预分词和词表初始化逻辑，并在脚本内用注释标出针对 TinyStories 任务的修改点。
+针对 2.1GB 训练文件，脚本将原始整文件读取改为按 `<|endoftext|>` 文档边界流式切分，将单进程预分词改为多进程并行计数，并将每轮全量扫描 pair 的 BPE 训练替换为增量 pair 倒排索引。
 
 运行命令：
 

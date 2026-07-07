@@ -53,15 +53,31 @@
 ### Problem(train_bpe_tinystories)
 
 - (a)
-  ```text
-  total_seconds=99.963
-  pretokenization_seconds=85.299
-  bpe_training_seconds=14.621
-  serialization_seconds=0.035
-  peak_rss_mb=3737.2
-  vocab_size=10000
-  merges=9743
-  longest_token=id=9379 bytes=15 utf8=' responsibility'
+  ```json
+  {
+    "input_path": "data/TinyStoriesV2-GPT4-train.txt",
+    "vocab_size": 10000,
+    "special_tokens": [
+      "<|endoftext|>"
+    ],
+    "workers": 9,
+    "batch_bytes": 67108864,
+    "unique_pretokens": 59933,
+    "total_pretokens": 536592168,
+    "actual_vocab_size": 10000,
+    "merge_count": 9743,
+    "pretokenization_seconds": 32.5644668749992,
+    "bpe_training_seconds": 10.176330375001271,
+    "longest_token": {
+      "id": 9379,
+      "hex": "20726573706f6e736962696c697479",
+      "utf8": " responsibility",
+      "byte_length": 15
+    },
+    "total_seconds": 42.76510929199867,
+    "serialization_seconds": 0.015650207998987753,
+    "peak_rss_mb": 3846.734375
+  }
   ```
 
   产物见 [vocab.json](../artifacts/tinystories_bpe/vocab.json) 、 [merges.json](../artifacts/tinystories_bpe/merges.json) 、 [summary.json](../artifacts/tinystories_bpe/summary.json)
