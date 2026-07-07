@@ -107,6 +107,11 @@ longest_token=id=9379 bytes=15 utf8=' responsibility'
 
 训练耗时约 100 秒，进程树峰值 RSS 约 3.65 GiB，满足“不超过 30 分钟、30GB RAM、无 GPU”的资源要求。
 
+Profiling 结果显示，tokenizer 训练中最耗时的是预分词计数阶段：`pretokenization_seconds=85.299`，
+约占总耗时的 85%。主要开销来自对 2.1GB TinyStories 文本按 `<|endoftext|>` 边界流式切分、
+UTF-8 解码、GPT-2 正则预分词，以及跨进程汇总 `Counter[bytes]`。实际 BPE merge 训练阶段耗时
+`14.621` 秒，序列化耗时只有 `0.035` 秒，因此当前瓶颈不是 merge 选择或产物写入，而是大规模文本预分词和计数。
+
 最长 token 是 `" responsibility"`，长度为 15 字节。这个结果合理：GPT-2 风格预分词会把英文单词前的空格保留在同一个 pretoken 中，BPE 会优先把高频片段逐步合并成完整词或带前导空格的完整词。TinyStories 中这类常见词被学习成单个 token 符合预期。
 
 ### 下载数据

@@ -65,3 +65,6 @@
   ```
 
   产物见 [vocab.json](../artifacts/tinystories_bpe/vocab.json) 、 [merges.json](../artifacts/tinystories_bpe/merges.json) 、 [summary.json](../artifacts/tinystories_bpe/summary.json)
+
+- (b)
+  根据 [summary.json](../artifacts/tinystories_bpe/summary.json) 中的数据，最耗时的是`预分词计数阶段（pretokenization）`
