@@ -161,3 +161,8 @@ cython_debug/
 
 .ruff_cache/
 *.zip
+.DS_Store
+
+# Local datasets and generated artifacts
+data/
+artifacts/
