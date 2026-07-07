@@ -115,6 +115,57 @@ UTF-8 解码、GPT-2 正则预分词，以及跨进程汇总 `Counter[bytes]`。
 
 最长 token 是 `" responsibility"`，长度为 15 字节。这个结果合理：GPT-2 风格预分词会把英文单词前的空格保留在同一个 pretoken 中，BPE 会优先把高频片段逐步合并成完整词或带前导空格的完整词。TinyStories 中这类常见词被学习成单个 token 符合预期。
 
+#### OpenWebText 32k BPE 训练任务
+
+新增脚本 [train_bpe_expts_owt.py](./cs336_basics/Part2/train_bpe_expts_owt.py)，用于在 OpenWebText
+训练集 `data/owt_train.txt` 上训练最大词表大小为 32,000 的 byte-level BPE tokenizer，并序列化词表和 merges。
+
+该脚本和 TinyStories 脚本一样，独立于 [train_bpe.py](./cs336_basics/Part2/train_bpe.py)，不会修改原始 BPE
+训练实现。脚本内部复制了原始 BPE 的基础校验、special token 切分、GPT-2 预分词和词表初始化逻辑，并用
+`OWT 修改点` 注释标出相对原始实现的改动：
+
+- 将原始整文件读取改为按 `<|endoftext|>` 文档边界流式分批，避免一次性读入 11GB 文本。
+- 将单进程预分词改为多进程预分词，并在主进程聚合 `Counter[bytes]`。
+- 将原始每轮全量扫描 pair 的 BPE 训练替换为增量 pair 倒排索引。
+- 针对 32k 词表训练中 lazy deletion heap stale entries 过多的问题，定期重建堆。
+- 新增进程树 RSS 采样、最长 token 统计、JSON 序列化和 tqdm 训练进度条。
+
+推荐在本机用 9 个 workers 运行：
+
+```sh
+uv run python cs336_basics/Part2/train_bpe_expts_owt.py \
+  --input data/owt_train.txt \
+  --output-dir artifacts/owt_bpe \
+  --vocab-size 32000 \
+  --workers 9 \
+  --progress-interval 1000
+```
+
+运行时会显示两段进度：
+
+- `pretokenization`：按已处理字节数显示预分词进度。
+- `bpe_merges`：按已完成 merge 数显示 BPE 训练进度，并周期性显示 `pair_types`、`heap_entries` 和已耗时。
+
+如果要关闭进度条，可以加上：
+
+```sh
+--no-progress
+```
+
+输出文件：
+
+- `artifacts/owt_bpe/vocab.json`：词表，按 token id 存储 token 的十六进制表示、UTF-8 检视文本和字节长度。
+- `artifacts/owt_bpe/merges.json`：merge 列表，按生成顺序存储左右 token。
+- `artifacts/owt_bpe/summary.json`：训练参数、资源占用、最长 token 和耗时统计。
+
+训练完成后，可以查看最长 token：
+
+```sh
+uv run python -c "import json; s=json.load(open('artifacts/owt_bpe/summary.json')); print(s['longest_token'])"
+```
+
+最长 token 是否合理的判断方式：GPT-2 风格预分词会保留英文词前导空格，BPE 会把高频片段合并为完整词、常见后缀、URL/标点片段或带前导空格的常见词。如果最长 token 是高频英文词、常见短语片段、URL 片段或重复符号片段，通常是合理的；如果是跨文档的 `<|endoftext|>` 拼接片段或包含特殊 token 的普通 token，则说明 special token 边界处理有问题。
+
 ### 下载数据
 
 下载 TinyStories 数据和 OpenWebText 的一个子样本：
