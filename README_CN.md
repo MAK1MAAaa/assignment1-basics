@@ -33,6 +33,116 @@ uv run pytest
 初始状态下，所有测试都会因为 `NotImplementedError` 失败。
 要把你的实现连接到测试，需要完成 [./tests/adapters.py](./tests/adapters.py) 中的函数。
 
+### 下载数据
+
+下载 TinyStories 数据和 OpenWebText 的一个子样本：
+
+```sh
+mkdir -p data
+cd data
+
+wget https://huggingface.co/datasets/roneneldan/TinyStories/resolve/main/TinyStoriesV2-GPT4-train.txt
+wget https://huggingface.co/datasets/roneneldan/TinyStories/resolve/main/TinyStoriesV2-GPT4-valid.txt
+
+wget https://huggingface.co/datasets/stanford-cs336/owt-sample/resolve/main/owt_train.txt.gz
+gunzip owt_train.txt.gz
+wget https://huggingface.co/datasets/stanford-cs336/owt-sample/resolve/main/owt_valid.txt.gz
+gunzip owt_valid.txt.gz
+
+cd ..
+```
+
+如果在 macOS 上执行上述命令时出现下面的错误：
+
+```text
+zsh: command not found: wget
+```
+
+原因是 macOS 默认通常不自带 `wget`。
+
+可以用下面两种方式解决：
+
+1. 直接改用系统自带的 `curl`：
+
+```sh
+mkdir -p data
+cd data
+
+curl -L -O https://huggingface.co/datasets/roneneldan/TinyStories/resolve/main/TinyStoriesV2-GPT4-train.txt
+curl -L -O https://huggingface.co/datasets/roneneldan/TinyStories/resolve/main/TinyStoriesV2-GPT4-valid.txt
+
+curl -L -O https://huggingface.co/datasets/stanford-cs336/owt-sample/resolve/main/owt_train.txt.gz
+gunzip owt_train.txt.gz
+curl -L -O https://huggingface.co/datasets/stanford-cs336/owt-sample/resolve/main/owt_valid.txt.gz
+gunzip owt_valid.txt.gz
+
+cd ..
+```
+
+2. 如果希望继续使用原文中的命令，可以先安装 `wget`：
+
+```sh
+brew install wget
+```
+
+下载完成后可以检查文件是否齐全：
+
+```sh
+ls -lh data
+```
+
+## `uv sync` 下载 Python 超时的原因
+
+你遇到的错误：
+
+```text
+error: Request failed after 3 retries in 48.7s
+  Caused by: Failed to download https://mirrors.ustc.edu.cn/github-release/astral-sh/python-build-standalone/20260414/cpython-3.13.13%2B20260414-aarch64-apple-darwin-install_only_stripped.tar.gz
+  Caused by: error sending request for url (...)
+  Caused by: client error (Connect)
+  Caused by: operation timed out
+```
+
+根本原因不是项目代码问题，而是 `uv` 在同步环境时需要下载一个受它管理的 Python 运行时，但连接镜像站超时。
+
+本项目的 [pyproject.toml](./pyproject.toml) 中有两个相关配置：
+
+```toml
+requires-python = ">=3.12,<3.14"
+
+[tool.uv]
+python-preference = "managed"
+```
+
+含义如下：
+
+- 项目要求 Python 版本必须大于等于 3.12 且小于 3.14。
+- `python-preference = "managed"` 表示 `uv` 会优先使用自己管理的 Python。
+- 如果本机没有可用的匹配版本，或者 `uv` 决定使用托管 Python，它会从 `python-build-standalone` 下载对应的 CPython 包。
+- 你的机器是 Apple Silicon macOS，因此它尝试下载 `aarch64-apple-darwin` 架构的 CPython 3.13.13。
+- 下载地址被配置到了中科大镜像 `mirrors.ustc.edu.cn`，但该连接在重试 3 次后仍然超时，所以 `uv sync` 失败。
+
+可以按下面顺序排查：
+
+1. 确认网络能访问该镜像地址，或稍后重试。
+2. 如果你本机已经安装了符合要求的 Python 3.12 或 3.13，可以改用系统 Python：
+
+```sh
+uv sync --python-preference only-system
+```
+
+3. 也可以显式指定一个已安装的 Python：
+
+```sh
+uv sync --python 3.12 --python-preference only-system
+```
+
+4. 如果问题来自当前镜像，可以清理或调整 `uv`/环境里的镜像配置，让它改用官方源或其他可用镜像。
+
+这个报错的关键判断点是最后的 `operation timed out`：它说明失败发生在网络连接阶段，而不是依赖版本冲突、测试失败或 Python 代码错误。
+
+---
+
 ### BPE 训练脚手架
 
 Part 2 的 BPE 训练脚手架位于
@@ -49,33 +159,6 @@ uv run pytest tests/test_train_bpe.py
 
 ```sh
 uv run pytest cs336_basics/Part2/test_train_bpe.py
-```
-
-### Byte-level BPE Tokenizer
-
-Part 2 的 tokenizer 实现位于
-[./cs336_basics/Part2/tokenizer.py](./cs336_basics/Part2/tokenizer.py)。
-该文件提供 `Tokenizer` 类，支持从 `dict[int, bytes]` 词表和按训练顺序排列的
-`list[tuple[bytes, bytes]]` merges 构造 byte-level BPE tokenizer，并提供：
-
-- `encode(text)`：将文本编码为 token id 列表。
-- `encode_iterable(iterable)`：惰性遍历字符串 iterable 并逐个产出 token id，适合文件句柄等大文本输入。
-- `decode(ids)`：将 token id 序列解码回 UTF-8 文本，遇到非法 UTF-8 字节时使用替换字符。
-- `from_files(vocab_filepath, merges_filepath, special_tokens)`：从序列化词表和 merges 构造 tokenizer。
-
-实现使用 GPT-2 风格预分词正则，并按 merge rank 选择最早学习到的可合并 pair。用户传入的
-special tokens 会按最长优先规则匹配，编码时保持为单个 token；如果对应 UTF-8 bytes 不在词表中，
-构造函数会把它追加到词表末尾。
-
-`from_files` 同时兼容两类文件格式：
-
-- 本仓库训练脚本输出的 `vocab.json` / `merges.json`，其中 token bytes 使用十六进制字段保存。
-- 课程测试 fixture 中的 GPT-2 `vocab.json` / `merges.txt`，其中 bytes 使用 GPT-2 可打印 Unicode 映射保存。
-
-测试适配器 `tests.adapters.get_tokenizer` 已接入该实现。验证命令：
-
-```sh
-uv run pytest tests/test_tokenizer.py
 ```
 
 #### BPE 训练性能优化记录
@@ -275,110 +358,182 @@ OpenWebText overlap=22.87%
 - 如果目标模型只服务 TinyStories 风格文本，TinyStories tokenizer 更紧凑、更贴近目标分布。
 - 如果目标模型要处理开放网页文本，OpenWebText tokenizer 的覆盖面更广，虽然会包含一些看似奇怪但在网页语料中高频的 token。
 
-### 下载数据
+### Byte-level BPE Tokenizer
 
-下载 TinyStories 数据和 OpenWebText 的一个子样本：
+Part 2 的 tokenizer 实现位于
+[./cs336_basics/Part2/tokenizer.py](./cs336_basics/Part2/tokenizer.py)。
+该文件提供 `Tokenizer` 类，支持从 `dict[int, bytes]` 词表和按训练顺序排列的
+`list[tuple[bytes, bytes]]` merges 构造 byte-level BPE tokenizer，并提供：
+
+- `encode(text)`：将文本编码为 token id 列表。
+- `encode_iterable(iterable)`：惰性遍历字符串 iterable 并逐个产出 token id，适合文件句柄等大文本输入。
+- `decode(ids)`：将 token id 序列解码回 UTF-8 文本，遇到非法 UTF-8 字节时使用替换字符。
+- `from_files(vocab_filepath, merges_filepath, special_tokens)`：从序列化词表和 merges 构造 tokenizer。
+
+实现使用 GPT-2 风格预分词正则，并按 merge rank 选择最早学习到的可合并 pair。用户传入的
+special tokens 会按最长优先规则匹配，编码时保持为单个 token；如果对应 UTF-8 bytes 不在词表中，
+构造函数会把它追加到词表末尾。
+
+`from_files` 同时兼容两类文件格式：
+
+- 本仓库训练脚本输出的 `vocab.json` / `merges.json`，其中 token bytes 使用十六进制字段保存。
+- 课程测试 fixture 中的 GPT-2 `vocab.json` / `merges.txt`，其中 bytes 使用 GPT-2 可打印 Unicode 映射保存。
+
+测试适配器 `tests.adapters.get_tokenizer` 已接入该实现。验证命令：
 
 ```sh
-mkdir -p data
-cd data
-
-wget https://huggingface.co/datasets/roneneldan/TinyStories/resolve/main/TinyStoriesV2-GPT4-train.txt
-wget https://huggingface.co/datasets/roneneldan/TinyStories/resolve/main/TinyStoriesV2-GPT4-valid.txt
-
-wget https://huggingface.co/datasets/stanford-cs336/owt-sample/resolve/main/owt_train.txt.gz
-gunzip owt_train.txt.gz
-wget https://huggingface.co/datasets/stanford-cs336/owt-sample/resolve/main/owt_valid.txt.gz
-gunzip owt_valid.txt.gz
-
-cd ..
+uv run pytest tests/test_tokenizer.py
 ```
 
-如果在 macOS 上执行上述命令时出现下面的错误：
+### Tokenizer 实验
+
+新增脚本 [tokenizer_experiments.py](./cs336_basics/Part2/tokenizer_experiments.py)，用于完成
+`tokenizer_experiments` 问题。该脚本直接复用
+[tokenizer.py](./cs336_basics/Part2/tokenizer.py) 中的 `Tokenizer.from_files`、`encode` 和
+`encode_iterable`，没有修改 tokenizer 原文件，也没有复制 tokenizer 源码。
+
+默认报告命令：
+
+```sh
+uv run python cs336_basics/Part2/tokenizer_experiments.py --mode report
+```
+
+该命令会读取：
+
+- TinyStories 10K tokenizer：`artifacts/tinystories_bpe/vocab.json` 和 `artifacts/tinystories_bpe/merges.json`
+- OpenWebText 32K tokenizer：`artifacts/owt_bpe/vocab.json` 和 `artifacts/owt_bpe/merges.json`
+- TinyStories train：`data/TinyStoriesV2-GPT4-train.txt`
+- OpenWebText train：`data/owt_train.txt`
+
+实验使用每个训练集前 10 个非空文档作为可复现样本，并把报告写入：
 
 ```text
-zsh: command not found: wget
+artifacts/tokenizer_experiments/tokenizer_experiments_report.json
 ```
 
-原因是 macOS 默认通常不自带 `wget`。
-
-可以用下面两种方式解决：
-
-1. 直接改用系统自带的 `curl`：
-
-```sh
-mkdir -p data
-cd data
-
-curl -L -O https://huggingface.co/datasets/roneneldan/TinyStories/resolve/main/TinyStoriesV2-GPT4-train.txt
-curl -L -O https://huggingface.co/datasets/roneneldan/TinyStories/resolve/main/TinyStoriesV2-GPT4-valid.txt
-
-curl -L -O https://huggingface.co/datasets/stanford-cs336/owt-sample/resolve/main/owt_train.txt.gz
-gunzip owt_train.txt.gz
-curl -L -O https://huggingface.co/datasets/stanford-cs336/owt-sample/resolve/main/owt_valid.txt.gz
-gunzip owt_valid.txt.gz
-
-cd ..
-```
-
-2. 如果希望继续使用原文中的命令，可以先安装 `wget`：
-
-```sh
-brew install wget
-```
-
-下载完成后可以检查文件是否齐全：
-
-```sh
-ls -lh data
-```
-
-## `uv sync` 下载 Python 超时的原因
-
-你遇到的错误：
+本机实测报告：
 
 ```text
-error: Request failed after 3 retries in 48.7s
-  Caused by: Failed to download https://mirrors.ustc.edu.cn/github-release/astral-sh/python-build-standalone/20260414/cpython-3.13.13%2B20260414-aarch64-apple-darwin-install_only_stripped.tar.gz
-  Caused by: error sending request for url (...)
-  Caused by: client error (Connect)
-  Caused by: operation timed out
+TinyStories sample + TinyStories 10K tokenizer:
+  bytes=7435
+  tokens=1808
+  bytes/token=4.112
+
+OpenWebText sample + OpenWebText 32K tokenizer:
+  bytes=31487
+  tokens=6712
+  bytes/token=4.691
+
+OpenWebText sample + TinyStories 10K tokenizer:
+  bytes=31487
+  tokens=9873
+  bytes/token=3.189
+
+TinyStories 10K throughput on a 2MiB TinyStories prefix:
+  2,111,372 bytes/s
+  513,947 tokens/s
+
+OpenWebText 32K throughput on a 2MiB OWT prefix:
+  1,725,461 bytes/s
+  389,811 tokens/s
+
+Estimated time for 825GB Pile using the OWT 32K measured throughput:
+  132.81 hours, about 5.53 days
 ```
 
-根本原因不是项目代码问题，而是 `uv` 在同步环境时需要下载一个受它管理的 Python 运行时，但连接镜像站超时。
+#### (a) TinyStories 和 OpenWebText tokenizer 的压缩率
 
-本项目的 [pyproject.toml](./pyproject.toml) 中有两个相关配置：
+TinyStories 10K tokenizer 在 TinyStories 10 文档样本上的压缩率是 **4.112 bytes/token**；
+OpenWebText 32K tokenizer 在 OpenWebText 10 文档样本上的压缩率是 **4.691 bytes/token**。
+OpenWebText tokenizer 的词表更大，并且训练语料更贴近网页文本，因此在 OWT 样本上能把更多常见网页片段、英文词片段和格式模式压缩成较长 token。
 
-```toml
-requires-python = ">=3.12,<3.14"
+#### (b) 用 TinyStories tokenizer 编码 OpenWebText 样本
 
-[tool.uv]
-python-preference = "managed"
-```
+同一份 OpenWebText 样本用 TinyStories 10K tokenizer 编码时，压缩率下降到 **3.189 bytes/token**，
+token 数从 OWT tokenizer 的 **6,712** 增加到 **9,873**。原因是 TinyStories tokenizer 的词表更小且语域偏儿童故事，
+对网页文本中的格式片段、长词、URL/标点模式和更广泛主题词覆盖不足，因此需要拆成更多短 token。
 
-含义如下：
+#### (c) Tokenizer 吞吐和 Pile tokenization 时间估计
 
-- 项目要求 Python 版本必须大于等于 3.12 且小于 3.14。
-- `python-preference = "managed"` 表示 `uv` 会优先使用自己管理的 Python。
-- 如果本机没有可用的匹配版本，或者 `uv` 决定使用托管 Python，它会从 `python-build-standalone` 下载对应的 CPython 包。
-- 你的机器是 Apple Silicon macOS，因此它尝试下载 `aarch64-apple-darwin` 架构的 CPython 3.13.13。
-- 下载地址被配置到了中科大镜像 `mirrors.ustc.edu.cn`，但该连接在重试 3 次后仍然超时，所以 `uv sync` 失败。
+在 2MiB 前缀 benchmark 上，TinyStories 10K tokenizer 吞吐约 **2.11 MB/s**，OpenWebText 32K tokenizer
+吞吐约 **1.73 MB/s**。如果按 OWT 32K tokenizer 的实测吞吐处理 **825GB** 的 Pile 文本，预计需要约
+**132.81 小时**，即约 **5.53 天**；这个估计只反映当前纯 Python 实现和本机环境，不包含并行化或更底层优化。
 
-可以按下面顺序排查：
+#### (d) 将 train/dev 数据集编码为 uint16
 
-1. 确认网络能访问该镜像地址，或稍后重试。
-2. 如果你本机已经安装了符合要求的 Python 3.12 或 3.13，可以改用系统 Python：
+脚本提供完整数据集编码子命令：
 
 ```sh
-uv sync --python-preference only-system
+uv run python cs336_basics/Part2/tokenizer_experiments.py \
+  --mode encode-datasets \
+  --output-dir artifacts/tokenizer_experiments \
+  --overwrite
 ```
 
-3. 也可以显式指定一个已安装的 Python：
+该子命令默认启用 `tqdm` 进度条：`encode <filename>` 按输入文件真实 bytes 显示读取和编码进度，
+`write <filename>.npy` 按临时 token 文件 bytes 显示写入 `.npy` 的进度。读取阶段使用二进制 chunk
+和 UTF-8 增量解码，因此可以显示准确的文件级进度，同时避免 chunk 边界切坏多字节字符。若在日志环境中不希望显示进度条，
+可以加上：
 
 ```sh
-uv sync --python 3.12 --python-preference only-system
+--no-progress
 ```
 
-4. 如果问题来自当前镜像，可以清理或调整 `uv`/环境里的镜像配置，让它改用官方源或其他可用镜像。
+默认每次读取 `1MiB` 输入；如果想调大 chunk，可以使用：
 
-这个报错的关键判断点是最后的 `operation timed out`：它说明失败发生在网络连接阶段，而不是依赖版本冲突、测试失败或 Python 代码错误。
+```sh
+--chunk-bytes 4194304
+```
+
+它会生成：
+
+- `artifacts/tokenizer_experiments/tinystories_train_uint16.npy`
+- `artifacts/tokenizer_experiments/tinystories_dev_uint16.npy`
+- `artifacts/tokenizer_experiments/owt_train_uint16.npy`
+- `artifacts/tokenizer_experiments/owt_dev_uint16.npy`
+
+完整编码已完成，摘要写入：
+
+```text
+artifacts/tokenizer_experiments/tokenized_datasets_summary.json
+```
+
+本机完整编码结果：
+
+```text
+TinyStories train:
+  input=data/TinyStoriesV2-GPT4-train.txt
+  output=artifacts/tokenizer_experiments/tinystories_train_uint16.npy
+  tokens=541,229,345
+  max_token_id=9,999
+  output_size=1.0G
+  seconds=1,110.01
+
+TinyStories dev:
+  input=data/TinyStoriesV2-GPT4-valid.txt
+  output=artifacts/tokenizer_experiments/tinystories_dev_uint16.npy
+  tokens=5,465,883
+  max_token_id=9,999
+  output_size=10M
+  seconds=10.53
+
+OpenWebText train:
+  input=data/owt_train.txt
+  output=artifacts/tokenizer_experiments/owt_train_uint16.npy
+  tokens=2,727,120,457
+  max_token_id=31,999
+  output_size=5.1G
+  seconds=7,522.31
+
+OpenWebText dev:
+  input=data/owt_valid.txt
+  output=artifacts/tokenizer_experiments/owt_dev_uint16.npy
+  tokens=66,401,098
+  max_token_id=31,999
+  output_size=127M
+  seconds=209.90
+```
+
+`uint16` 合适是因为两个 tokenizer 的词表大小分别是 **10,000** 和 **32,000**，最大 token id 都小于
+`uint16` 能表示的上限 **65,535**。相比 `int32`，`uint16` 可以把 tokenized dataset 的磁盘和内存占用减半，
+同时仍能无损保存所有 token id。

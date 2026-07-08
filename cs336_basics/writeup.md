@@ -1,50 +1,57 @@
 ### Problem(unicode1)
 
-- (a)
-  空字符NUL
+#### (a)
 
-- (b)
-  可以输出内容`'\x00'`
+空字符NUL
 
-- (c)
-  `chr(0)`不会显示出来，当他在句子中时候，下一个字符会直接输出在他的位置（ghostty+zsh）
+#### (b)
+
+可以输出内容`'\x00'`
+
+#### (c)
+
+`chr(0)`不会显示出来，当他在句子中时候，下一个字符会直接输出在他的位置（ghostty+zsh）
 
 ### Problem(unicode2)
 
-- (a)
-  | 编码类型 | 占字节数 |
-  | -------- | -------- |
-  | UTF-8 | 1-4 |
-  | UTF-16 | 2-4 |
-  | UTF-32 | 4 |
+#### (a)
 
-  超过98%的网页都在使用utf8编码，而且英文在utf8下仅占1个字节，可以显著的节约空间。
+| 编码类型 | 占字节数 |
+| -------- | -------- |
+| UTF-8    | 1-4      |
+| UTF-16   | 2-4      |
+| UTF-32   | 4        |
 
-- (b)
-  这个函数仅能在纯英文环境下才能正常运行，例如使用中文或者emoji都会导致报错。
+超过98%的网页都在使用utf8编码，而且英文在utf8下仅占1个字节，可以显著的节约空间。
 
-  ```bash
-  mac $makima: ~/Desktop/code/python projects/stf_course ❯ uv run "/Users/makima/Desktop/code/python projects/stf_course/assignment1-basics/cs336_basics/Part 2/temp_2_2.py"
-  Traceback (most recent call last):
-    File "/Users/makima/Desktop/code/python projects/stf_course/assignment1-basics/cs336_basics/Part 2/temp_2_2.py", line 4, in <module>
-      decode_utf8_bytes_to_str_wrong("原神启动！".encode("utf-8"))
-      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    File "/Users/makima/Desktop/code/python projects/stf_course/assignment1-basics/cs336_basics/Part 2/temp_2_2.py", line 2, in decode_utf8_bytes_to_str_wrong
-      return "".join([bytes([b]).decode("utf-8") for b in bytestring])
-                      ~~~~~~~~~~~~~~~~~^^^^^^^^^
-  UnicodeDecodeError: 'utf-8' codec can't decode byte 0xe5 in position 0: unexpected end of data
-  ```
+#### (b)
 
-- (c)
-  ```bash
-  mac $makima: ~/Desktop/code/python projects/stf_course ❯ uv run "/Users/makima/Desktop/code/python projects/stf_course/assignment1-basics/cs336_basics/Part 2/temp_2_2.py"
-  Traceback (most recent call last):
-    File "/Users/makima/Desktop/code/python projects/stf_course/assignment1-basics/cs336_basics/Part 2/temp_2_2.py", line 6, in <module>
-      b"\x80\x80".decode("utf-8")
-      ~~~~~~~~~~~~~~~~~~^^^^^^^^^
-  UnicodeDecodeError: 'utf-8' codec can't decode byte 0x80 in position 0: invalid start byte
-  ```
-  例如上面的后续字节。
+这个函数仅能在纯英文环境下才能正常运行，例如使用中文或者emoji都会导致报错。
+
+```text
+mac $makima: ~/Desktop/code/python projects/stf_course ❯ uv run "/Users/makima/Desktop/code/python projects/stf_course/assignment1-basics/cs336_basics/Part 2/temp_2_2.py"
+Traceback (most recent call last):
+  File "/Users/makima/Desktop/code/python projects/stf_course/assignment1-basics/cs336_basics/Part 2/temp_2_2.py", line 4, in <module>
+    decode_utf8_bytes_to_str_wrong("原神启动！".encode("utf-8"))
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/makima/Desktop/code/python projects/stf_course/assignment1-basics/cs336_basics/Part 2/temp_2_2.py", line 2, in decode_utf8_bytes_to_str_wrong
+    return "".join([bytes([b]).decode("utf-8") for b in bytestring])
+                    ~~~~~~~~~~~~~~~~~^^^^^^^^^
+UnicodeDecodeError: 'utf-8' codec can't decode byte 0xe5 in position 0: unexpected end of data
+```
+
+#### (c)
+
+```text
+mac $makima: ~/Desktop/code/python projects/stf_course ❯ uv run "/Users/makima/Desktop/code/python projects/stf_course/assignment1-basics/cs336_basics/Part 2/temp_2_2.py"
+Traceback (most recent call last):
+  File "/Users/makima/Desktop/code/python projects/stf_course/assignment1-basics/cs336_basics/Part 2/temp_2_2.py", line 6, in <module>
+    b"\x80\x80".decode("utf-8")
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^
+UnicodeDecodeError: 'utf-8' codec can't decode byte 0x80 in position 0: invalid start byte
+```
+
+例如上面的后续字节。
 
 ### Problem(train_bpe)
 
@@ -52,75 +59,81 @@
 
 ### Problem(train_bpe_tinystories)
 
-- (a)
+#### (a)
 
-  ```json
-  {
-    "input_path": "data/TinyStoriesV2-GPT4-train.txt",
-    "vocab_size": 10000,
-    "special_tokens": ["<|endoftext|>"],
-    "workers": 9,
-    "batch_bytes": 67108864,
-    "unique_pretokens": 59933,
-    "total_pretokens": 536592168,
-    "actual_vocab_size": 10000,
-    "merge_count": 9743,
-    "pretokenization_seconds": 32.5644668749992,
-    "bpe_training_seconds": 10.176330375001271,
-    "longest_token": {
-      "id": 9379,
-      "hex": "20726573706f6e736962696c697479",
-      "utf8": " responsibility",
-      "byte_length": 15
-    },
-    "total_seconds": 42.76510929199867,
-    "serialization_seconds": 0.015650207998987753,
-    "peak_rss_mb": 3846.734375
-  }
-  ```
+```json
+{
+  "input_path": "data/TinyStoriesV2-GPT4-train.txt",
+  "vocab_size": 10000,
+  "special_tokens": ["<|endoftext|>"],
+  "workers": 9,
+  "batch_bytes": 67108864,
+  "unique_pretokens": 59933,
+  "total_pretokens": 536592168,
+  "actual_vocab_size": 10000,
+  "merge_count": 9743,
+  "pretokenization_seconds": 32.5644668749992,
+  "bpe_training_seconds": 10.176330375001271,
+  "longest_token": {
+    "id": 9379,
+    "hex": "20726573706f6e736962696c697479",
+    "utf8": " responsibility",
+    "byte_length": 15
+  },
+  "total_seconds": 42.76510929199867,
+  "serialization_seconds": 0.015650207998987753,
+  "peak_rss_mb": 3846.734375
+}
+```
 
-  代码见[train_bpe_tinystories.py](Part2/train_bpe_tinystories.py)。产物见[vocab.json](../artifacts/tinystories_bpe/vocab.json)、[merges.json](../artifacts/tinystories_bpe/merges.json)、[summary.json](../artifacts/tinystories_bpe/summary.json)。用时约42.765s，内存消耗约3846MB。最长的token是`responsibility`，他就是正常单词的含义。
+代码见[train_bpe_tinystories.py](Part2/train_bpe_tinystories.py)。产物见[vocab.json](../artifacts/tinystories_bpe/vocab.json)、[merges.json](../artifacts/tinystories_bpe/merges.json)、[summary.json](../artifacts/tinystories_bpe/summary.json)。用时约42.765s，内存消耗约3846MB。最长的token是`responsibility`，他就是正常单词的含义。
 
-- (b)
-  根据[summary.json](../artifacts/tinystories_bpe/summary.json)中的数据，最耗时的是`预分词计数阶段（pretokenization）`
+#### (b)
+
+根据[summary.json](../artifacts/tinystories_bpe/summary.json)中的数据，最耗时的是`预分词计数阶段（pretokenization）`
 
 ### Problem(train_bpe_expts_owt)
 
-- (a)
-  ```json
-  {
-    "input_path": "data/owt_train.txt",
-    "vocab_size": 32000,
-    "special_tokens": ["<|endoftext|>"],
-    "workers": 9,
-    "batch_bytes": 67108864,
-    "progress_interval": 1000,
-    "heap_rebuild_multiplier": 4,
-    "show_progress": true,
-    "unique_pretokens": 6601892,
-    "total_pretokens": 2471753092,
-    "actual_vocab_size": 32000,
-    "merge_count": 31743,
-    "pretokenization_seconds": 252.36145837499862,
-    "bpe_training_seconds": 861.1913226249999,
-    "longest_token": {
-      "id": 25836,
-      "hex": "2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d",
-      "utf8": "----------------------------------------------------------------",
-      "byte_length": 64
-    },
-    "total_seconds": 1113.658848250001,
-    "serialization_seconds": 0.09106141699885484,
-    "peak_rss_mb": 6677.4375
-  }
-  ```
-  代码见[train_bpe_expts_owt.py](Part2/train_bpe_expts_owt.py)。产物见[vocab.json](../artifacts/owt_bpe/vocab.json)、[merges.json](../artifacts/owt_bpe/merges.json)、[summary.json](../artifacts/owt_bpe/summary.json)。最长的token是`----------------------------------------------------------------`，因为数据来自网页文本，markdown中分隔线在html上渲染后的效果就是如此。
+#### (a)
 
-- (b)
-  TinyStories tokenizer更贴近儿童故事语域，词表更干净，长 token 多是常见英文完整词；OpenWebText tokenizer覆盖面更广，但会学习网页文本中的分隔线、重复标点、编码噪声等高频格式片段。
+```json
+{
+  "input_path": "data/owt_train.txt",
+  "vocab_size": 32000,
+  "special_tokens": ["<|endoftext|>"],
+  "workers": 9,
+  "batch_bytes": 67108864,
+  "progress_interval": 1000,
+  "heap_rebuild_multiplier": 4,
+  "show_progress": true,
+  "unique_pretokens": 6601892,
+  "total_pretokens": 2471753092,
+  "actual_vocab_size": 32000,
+  "merge_count": 31743,
+  "pretokenization_seconds": 252.36145837499862,
+  "bpe_training_seconds": 861.1913226249999,
+  "longest_token": {
+    "id": 25836,
+    "hex": "2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d",
+    "utf8": "----------------------------------------------------------------",
+    "byte_length": 64
+  },
+  "total_seconds": 1113.658848250001,
+  "serialization_seconds": 0.09106141699885484,
+  "peak_rss_mb": 6677.4375
+}
+```
+
+代码见[train_bpe_expts_owt.py](Part2/train_bpe_expts_owt.py)。产物见[vocab.json](../artifacts/owt_bpe/vocab.json)、[merges.json](../artifacts/owt_bpe/merges.json)、[summary.json](../artifacts/owt_bpe/summary.json)。最长的token是`----------------------------------------------------------------`，因为数据来自网页文本，markdown中分隔线在html上渲染后的效果就是如此。
+
+#### (b)
+
+TinyStories tokenizer更贴近儿童故事语域，词表更干净，长 token 多是常见英文完整词；OpenWebText tokenizer覆盖面更广，但会学习网页文本中的分隔线、重复标点、编码噪声等高频格式片段。
 
 ### Problem(tokenizer)
+
 源码见[tokenizer.py](Part2/tokenizer.py)
+
 ```bash
 mac $makima: ~/Desktop/code/python projects/stf_course/assignment1-basics on main ≡ ❯ uv run pytest tests/test_tokenizer.py                          75.63% 12/16GB
 
@@ -159,7 +172,9 @@ tests/test_tokenizer.py::test_encode_memory_usage SKIPPED (rlimit suppo...)
 
 ========================== 23 passed, 2 skipped in 1.17s ==========================
 ```
+
 其中2个skipped原因是因为我使用的是macos而非linux
+
 ```python
 @pytest.mark.skipif(
     not sys.platform.startswith("linux"),
@@ -194,3 +209,60 @@ def test_encode_memory_usage():
         _ = _encode(tokenizer, contents)
 
 ```
+
+### Problem(tokenizer_experiments)
+
+采用每个训练集前10个非空文档作为可复现样本，数据摘要在[tokenizer_experiments_report.json](../artifacts/tokenizer_experiments/tokenizer_experiments_report.json)中。
+
+```text
+TinyStories sample + TinyStories 10K tokenizer:
+  bytes=7435
+  tokens=1808
+  bytes/token=4.112
+
+OpenWebText sample + OpenWebText 32K tokenizer:
+  bytes=31487
+  tokens=6712
+  bytes/token=4.691
+
+OpenWebText sample + TinyStories 10K tokenizer:
+  bytes=31487
+  tokens=9873
+  bytes/token=3.189
+
+TinyStories 10K throughput on a 2MiB TinyStories prefix:
+  2,111,372 bytes/s
+  513,947 tokens/s
+
+OpenWebText 32K throughput on a 2MiB OWT prefix:
+  1,725,461 bytes/s
+  389,811 tokens/s
+
+Estimated time for 825GB Pile using the OWT 32K measured throughput:
+  132.81 hours, about 5.53 days
+```
+
+#### (a)
+
+由上面的数据可得知，TinyStories 10K tokenizer在TinyStories 10文档样本上的压缩率是4.112bytes/token；OpenWebText 32K tokenizer在OpenWebText 10文档样本上的压缩率是4.691 bytes/token。
+
+#### (b)
+
+TinyStories 10K tokenizer在OpenWebText 10文档样本上的压缩率是3.189 bytes/token。压缩率显著降低。
+
+#### (c)
+
+按照OpenWebText 32K tokenizer吞吐量1725461bytes/s来计算的话，大约需要132.81小时，约为5.53天。
+
+#### (d)
+
+[tokenizer_experiments.py](Part2/tokenizer_experiments.py)脚本提供完整数据集编码子命令:
+
+```sh
+uv run python cs336_basics/Part2/tokenizer_experiments.py \
+  --mode encode-datasets \
+  --output-dir artifacts/tokenizer_experiments \
+  --overwrite
+```
+
+uint16最大可以表示65535，而两个tokenizer词表的最大大小为10000和32000，都小于uint16的上限。而uint16只需要int32一半的大小，可以显著减少磁盘和内存占用，且无损保存全部token id。
