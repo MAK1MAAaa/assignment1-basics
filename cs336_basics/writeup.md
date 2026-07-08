@@ -115,3 +115,8 @@
   }
   ```
   代码见[train_bpe_expts_owt.py](Part2/train_bpe_expts_owt.py)。产物见[vocab.json](../artifacts/owt_bpe/vocab.json)、[merges.json](../artifacts/owt_bpe/merges.json)、[summary.json](../artifacts/owt_bpe/summary.json)。最长的token是`----------------------------------------------------------------`，因为数据来自网页文本，markdown中分隔线在html上渲染后的效果就是如此。
+
+- (b)
+  TinyStories tokenizer更贴近儿童故事语域，词表更干净，长 token 多是常见英文完整词；OpenWebText tokenizer覆盖面更广，但会学习网页文本中的分隔线、重复标点、编码噪声等高频格式片段。
+
+  

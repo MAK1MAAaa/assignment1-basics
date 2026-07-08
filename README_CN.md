@@ -82,7 +82,7 @@ uv run pytest tests/test_train_bpe.py
 uv run python cs336_basics/Part2/train_bpe_tinystories.py \
   --input data/TinyStoriesV2-GPT4-train.txt \
   --output-dir artifacts/tinystories_bpe \
-  --vocab-size 10000
+  --vocab-size 10000 \
   --workers 9
 ```
 
@@ -193,6 +193,60 @@ uv run python -c "import json; s=json.load(open('artifacts/owt_bpe/summary.json'
 ```
 
 最长 token 是否合理的判断方式：GPT-2 风格预分词会保留英文词前导空格，BPE 会把高频片段合并为完整词、常见后缀、URL/标点片段或带前导空格的常见词。如果最长 token 是高频英文词、常见短语片段、URL 片段或重复符号片段，通常是合理的；如果是跨文档的 `<|endoftext|>` 拼接片段或包含特殊 token 的普通 token，则说明 special token 边界处理有问题。
+
+#### TinyStories 与 OpenWebText tokenizer 对比
+
+两个 tokenizer 都是 byte-level BPE，并且都把 `<|endoftext|>` 作为 special token 处理，但训练语料和词表大小不同：
+
+- TinyStories：训练文本约 2.1GB，最大词表大小 10,000，实际 merge 数 9,743。
+- OpenWebText：训练文本约 11GB，最大词表大小 32,000，实际 merge 数 31,743。
+
+因此这个对比不是严格控制变量实验；差异同时来自语料分布和词表大小。即便如此，两个 tokenizer 学到的词表形态差异很明显。
+
+词表统计：
+
+```text
+TinyStories:
+  vocab_size=10000
+  avg_token_bytes=5.791
+  median_token_bytes=6
+  max_token_bytes=15
+  tokens_with_len>=10: 625
+  tokens_with_len>=20: 0
+
+OpenWebText:
+  vocab_size=32000
+  avg_token_bytes=6.337
+  median_token_bytes=6
+  max_token_bytes=64
+  tokens_with_len>=10: 4408
+  tokens_with_len>=20: 10
+  tokens_with_len>=40: 3
+```
+
+词表重叠：
+
+```text
+shared_tokens=7319
+TinyStories overlap=73.19%
+OpenWebText overlap=22.87%
+```
+
+这个重叠结果符合预期：TinyStories 的 10k 词表中大部分是基础英文 byte、常见子词和常见单词，这些在更大、更通用的 OpenWebText 中也会出现；但 OpenWebText 的 32k 词表更大，并且覆盖网页文本、代码片段、URL、Markdown、论坛格式、编码异常和长标点模式，所以只有约 22.87% 的 OWT token 同时出现在 TinyStories 词表中。
+
+典型差异：
+
+- TinyStories 的长 token 更像儿童故事中的自然语言词汇，例如 `" responsibility"`、`" disappointment"`、`" accomplishment"`、`" granddaughter"`、`" extraordinary"`。
+- TinyStories 独有 token 中有明显的故事语域词，例如 `" marshmallows"`、`" caterpillars"`、`" superheroes"`、`" sandcastles"`、`" mischievous"`。
+- OpenWebText 的长 token 更像网页语料中的格式化片段或噪声，例如 64 个连续 `-`、连续 `—`、连续 `_`、连续 `*`、连续 `=`，以及 mojibake 编码片段 `"ÃÂÃÂ..."`。
+- OpenWebText 独有 token 中也包含更成人化、更新闻/技术/网页语域的长词，例如 `" telecommunications"`、`" disproportionately"`、`" environmentalists"`、`" unconstitutional"`、`" cryptocurrencies"`、`" counterterrorism"`。
+
+结论：
+
+- TinyStories tokenizer 更适合儿童故事域，词表更干净，长 token 主要是常见完整英文词或带前导空格的完整词。
+- OpenWebText tokenizer 更通用，但也会把网页格式、长分隔线、重复标点、编码异常等高频模式纳入词表；这对压缩真实网页文本有用，但会让词表看起来更“脏”。
+- 如果目标模型只服务 TinyStories 风格文本，TinyStories tokenizer 更紧凑、更贴近目标分布。
+- 如果目标模型要处理开放网页文本，OpenWebText tokenizer 的覆盖面更广，虽然会包含一些看似奇怪但在网页语料中高频的 token。
 
 ### 下载数据
 
