@@ -51,6 +51,33 @@ uv run pytest tests/test_train_bpe.py
 uv run pytest cs336_basics/Part2/test_train_bpe.py
 ```
 
+### Byte-level BPE Tokenizer
+
+Part 2 的 tokenizer 实现位于
+[./cs336_basics/Part2/tokenizer.py](./cs336_basics/Part2/tokenizer.py)。
+该文件提供 `Tokenizer` 类，支持从 `dict[int, bytes]` 词表和按训练顺序排列的
+`list[tuple[bytes, bytes]]` merges 构造 byte-level BPE tokenizer，并提供：
+
+- `encode(text)`：将文本编码为 token id 列表。
+- `encode_iterable(iterable)`：惰性遍历字符串 iterable 并逐个产出 token id，适合文件句柄等大文本输入。
+- `decode(ids)`：将 token id 序列解码回 UTF-8 文本，遇到非法 UTF-8 字节时使用替换字符。
+- `from_files(vocab_filepath, merges_filepath, special_tokens)`：从序列化词表和 merges 构造 tokenizer。
+
+实现使用 GPT-2 风格预分词正则，并按 merge rank 选择最早学习到的可合并 pair。用户传入的
+special tokens 会按最长优先规则匹配，编码时保持为单个 token；如果对应 UTF-8 bytes 不在词表中，
+构造函数会把它追加到词表末尾。
+
+`from_files` 同时兼容两类文件格式：
+
+- 本仓库训练脚本输出的 `vocab.json` / `merges.json`，其中 token bytes 使用十六进制字段保存。
+- 课程测试 fixture 中的 GPT-2 `vocab.json` / `merges.txt`，其中 bytes 使用 GPT-2 可打印 Unicode 映射保存。
+
+测试适配器 `tests.adapters.get_tokenizer` 已接入该实现。验证命令：
+
+```sh
+uv run pytest tests/test_tokenizer.py
+```
+
 #### BPE 训练性能优化记录
 
 `train_bpe.py` 中已在相关函数旁用注释保留原始朴素写法，并实现了下面两处优化：

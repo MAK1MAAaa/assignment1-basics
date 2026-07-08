@@ -119,4 +119,78 @@
 - (b)
   TinyStories tokenizer更贴近儿童故事语域，词表更干净，长 token 多是常见英文完整词；OpenWebText tokenizer覆盖面更广，但会学习网页文本中的分隔线、重复标点、编码噪声等高频格式片段。
 
-  
+### Problem(tokenizer)
+源码见[tokenizer.py](Part2/tokenizer.py)
+```bash
+mac $makima: ~/Desktop/code/python projects/stf_course/assignment1-basics on main ≡ ❯ uv run pytest tests/test_tokenizer.py                          75.63% 12/16GB
+
+=============================== test session starts ===============================
+platform darwin -- Python 3.13.13, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/makima/Desktop/code/python projects/stf_course/assignment1-basics
+configfile: pyproject.toml
+plugins: jaxtyping-0.3.9, timeout-2.4.0
+collected 25 items
+
+tests/test_tokenizer.py::test_roundtrip_empty PASSED
+tests/test_tokenizer.py::test_empty_matches_tiktoken PASSED
+tests/test_tokenizer.py::test_roundtrip_single_character PASSED
+tests/test_tokenizer.py::test_single_character_matches_tiktoken PASSED
+tests/test_tokenizer.py::test_roundtrip_single_unicode_character PASSED
+tests/test_tokenizer.py::test_single_unicode_character_matches_tiktoken PASSED
+tests/test_tokenizer.py::test_roundtrip_ascii_string PASSED
+tests/test_tokenizer.py::test_ascii_string_matches_tiktoken PASSED
+tests/test_tokenizer.py::test_roundtrip_unicode_string PASSED
+tests/test_tokenizer.py::test_unicode_string_matches_tiktoken PASSED
+tests/test_tokenizer.py::test_roundtrip_unicode_string_with_special_tokens PASSED
+tests/test_tokenizer.py::test_unicode_string_with_special_tokens_matches_tiktoken PASSED
+tests/test_tokenizer.py::test_overlapping_special_tokens PASSED
+tests/test_tokenizer.py::test_address_roundtrip PASSED
+tests/test_tokenizer.py::test_address_matches_tiktoken PASSED
+tests/test_tokenizer.py::test_german_roundtrip PASSED
+tests/test_tokenizer.py::test_german_matches_tiktoken PASSED
+tests/test_tokenizer.py::test_tinystories_sample_roundtrip PASSED
+tests/test_tokenizer.py::test_tinystories_matches_tiktoken PASSED
+tests/test_tokenizer.py::test_encode_special_token_trailing_newlines PASSED
+tests/test_tokenizer.py::test_encode_special_token_double_newline_non_whitespace PASSED
+tests/test_tokenizer.py::test_encode_iterable_tinystories_sample_roundtrip PASSED
+tests/test_tokenizer.py::test_encode_iterable_tinystories_matches_tiktoken PASSED
+tests/test_tokenizer.py::test_encode_iterable_memory_usage SKIPPED (rli...)
+tests/test_tokenizer.py::test_encode_memory_usage SKIPPED (rlimit suppo...)
+
+========================== 23 passed, 2 skipped in 1.17s ==========================
+```
+其中2个skipped原因是因为我使用的是macos而非linux
+```python
+@pytest.mark.skipif(
+    not sys.platform.startswith("linux"),
+    reason="rlimit support for non-linux systems is spotty.",
+)
+def test_encode_iterable_memory_usage():
+    tokenizer = get_tokenizer_from_vocab_merges_path(
+        vocab_path=VOCAB_PATH,
+        merges_path=MERGES_PATH,
+    )
+    with open(FIXTURES_PATH / "tinystories_sample_5M.txt") as f:
+        ids = []
+        for _id in _encode_iterable(tokenizer, f):
+            ids.append(_id)
+
+
+@pytest.mark.skipif(
+    not sys.platform.startswith("linux"),
+    reason="rlimit support for non-linux systems is spotty.",
+)
+@pytest.mark.xfail(reason="Tokenizer.encode is expected to take more memory than allotted (1MB).")
+def test_encode_memory_usage():
+    """
+    We expect this test to fail, since Tokenizer.encode is not expected to be memory efficient.
+    """
+    tokenizer = get_tokenizer_from_vocab_merges_path(
+        vocab_path=VOCAB_PATH,
+        merges_path=MERGES_PATH,
+    )
+    with open(FIXTURES_PATH / "tinystories_sample_5M.txt") as f:
+        contents = f.read()
+        _ = _encode(tokenizer, contents)
+
+```
