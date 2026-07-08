@@ -352,20 +352,16 @@ def train_bpe_from_token_counts(
                     continue
 
                 word_weight = word_weights[word_id]
-                remove_old_pair_counts(
-                    old_pair_counts=old_pair_counts,
-                    word_id=word_id,
-                    word_weight=word_weight,
-                    pair_counts=pair_counts,
-                    pair_to_word_counts=pair_to_word_counts,
-                    heap=heap,
-                    vocab=vocab,
+                new_token_ids, new_pair_counts = merge_token_id_pair_and_count_pairs(
+                    old_token_ids,
+                    best_pair,
+                    merged_token_id,
                 )
-
-                new_token_ids = merge_token_id_pair(old_token_ids, best_pair, merged_token_id)
                 word_tokens[word_id] = new_token_ids
-                add_new_pair_counts(
-                    new_pair_counts=count_token_id_pairs(new_token_ids),
+
+                apply_pair_count_deltas(
+                    old_pair_counts=old_pair_counts,
+                    new_pair_counts=new_pair_counts,
                     word_id=word_id,
                     word_weight=word_weight,
                     pair_counts=pair_counts,
@@ -437,6 +433,81 @@ def count_token_id_pairs(token_ids: Sequence[int]) -> dict[IdPair, int]:
     return pair_counts
 
 
+def apply_pair_count_deltas(
+    old_pair_counts: Mapping[IdPair, int],
+    new_pair_counts: Mapping[IdPair, int],
+    word_id: int,
+    word_weight: int,
+    pair_counts: dict[IdPair, int],
+    pair_to_word_counts: dict[IdPair, dict[int, int]],
+    heap: list[tuple[int, DescendingPairKey, IdPair]],
+    vocab: Mapping[int, bytes],
+) -> None:
+    """OWT 修改点：只更新发生变化的 pair，避免对整条 pretoken 的所有 pair 反复 heappush。
+
+    旧实现会先移除合并前 word 的所有 pair，再加入合并后 word 的所有 pair。
+    对 OWT 这种大语料来说，大多数 pair 在一次局部 merge 前后并没有变化，
+    这些无效更新会制造大量 stale heap entries。这里改为 old/new 计数 diff，
+    只有计数变化的 pair 才更新全局 pair_counts 和倒排索引。
+    """
+    changed_pairs = old_pair_counts.keys() | new_pair_counts.keys()
+    for pair in changed_pairs:
+        old_occurrences = old_pair_counts.get(pair, 0)
+        new_occurrences = new_pair_counts.get(pair, 0)
+        if old_occurrences == new_occurrences:
+            continue
+
+        update_word_pair_index(
+            pair=pair,
+            word_id=word_id,
+            new_occurrences=new_occurrences,
+            pair_to_word_counts=pair_to_word_counts,
+        )
+        update_global_pair_count(
+            pair=pair,
+            weighted_delta=(new_occurrences - old_occurrences) * word_weight,
+            pair_counts=pair_counts,
+            heap=heap,
+            vocab=vocab,
+        )
+
+
+def update_word_pair_index(
+    pair: IdPair,
+    word_id: int,
+    new_occurrences: int,
+    pair_to_word_counts: dict[IdPair, dict[int, int]],
+) -> None:
+    word_map = pair_to_word_counts.get(pair)
+    if new_occurrences > 0:
+        if word_map is None:
+            pair_to_word_counts[pair] = {word_id: new_occurrences}
+        else:
+            word_map[word_id] = new_occurrences
+        return
+
+    if word_map is None:
+        return
+    word_map.pop(word_id, None)
+    if not word_map:
+        pair_to_word_counts.pop(pair, None)
+
+
+def update_global_pair_count(
+    pair: IdPair,
+    weighted_delta: int,
+    pair_counts: dict[IdPair, int],
+    heap: list[tuple[int, DescendingPairKey, IdPair]],
+    vocab: Mapping[int, bytes],
+) -> None:
+    updated_count = pair_counts.get(pair, 0) + weighted_delta
+    if updated_count > 0:
+        pair_counts[pair] = updated_count
+        push_pair(heap, pair, updated_count, vocab)
+    else:
+        pair_counts.pop(pair, None)
+
+
 def remove_old_pair_counts(
     old_pair_counts: Mapping[IdPair, int],
     word_id: int,
@@ -496,6 +567,39 @@ def merge_token_id_pair(token_ids: Sequence[int], pair_to_merge: IdPair, merged_
             index += 1
 
     return merged_token_ids
+
+
+def merge_token_id_pair_and_count_pairs(
+    token_ids: Sequence[int],
+    pair_to_merge: IdPair,
+    merged_token_id: int,
+) -> tuple[list[int], dict[IdPair, int]]:
+    """合并 pair，并在同一次扫描里统计合并后的相邻 pair。"""
+    merged_token_ids: list[int] = []
+    pair_counts: dict[IdPair, int] = {}
+    index = 0
+    token_count = len(token_ids)
+
+    while index < token_count:
+        if index < token_count - 1 and (token_ids[index], token_ids[index + 1]) == pair_to_merge:
+            append_token_and_count_pair(merged_token_ids, pair_counts, merged_token_id)
+            index += 2
+        else:
+            append_token_and_count_pair(merged_token_ids, pair_counts, token_ids[index])
+            index += 1
+
+    return merged_token_ids, pair_counts
+
+
+def append_token_and_count_pair(
+    token_ids: list[int],
+    pair_counts: dict[IdPair, int],
+    token_id: int,
+) -> None:
+    if token_ids:
+        pair = (token_ids[-1], token_id)
+        pair_counts[pair] = pair_counts.get(pair, 0) + 1
+    token_ids.append(token_id)
 
 
 def push_pair(

@@ -83,6 +83,7 @@ uv run python cs336_basics/Part2/train_bpe_tinystories.py \
   --input data/TinyStoriesV2-GPT4-train.txt \
   --output-dir artifacts/tinystories_bpe \
   --vocab-size 10000
+  --workers 9
 ```
 
 输出文件：
@@ -96,22 +97,22 @@ uv run python cs336_basics/Part2/train_bpe_tinystories.py \
 ```text
 vocab_size=10000
 merges=9743
-total_seconds=99.963
-pretokenization_seconds=85.299
-bpe_training_seconds=14.621
-serialization_seconds=0.035
-peak_rss_mb=3737.2
+total_seconds=42.765
+pretokenization_seconds=32.564
+bpe_training_seconds=10.176
+serialization_seconds=0.016
+peak_rss_mb=3846.7
 unique_pretokens=59933
 total_pretokens=536592168
 longest_token=id=9379 bytes=15 utf8=' responsibility'
 ```
 
-训练耗时约 100 秒，进程树峰值 RSS 约 3.65 GiB，满足“不超过 30 分钟、30GB RAM、无 GPU”的资源要求。
+训练耗时约 42.77 秒，进程树峰值 RSS 约 3.76 GiB，满足“不超过 30 分钟、30GB RAM、无 GPU”的资源要求。
 
-Profiling 结果显示，tokenizer 训练中最耗时的是预分词计数阶段：`pretokenization_seconds=85.299`，
-约占总耗时的 85%。主要开销来自对 2.1GB TinyStories 文本按 `<|endoftext|>` 边界流式切分、
+Profiling 结果显示，tokenizer 训练中最耗时的是预分词计数阶段：`pretokenization_seconds=32.564`，
+约占总耗时的 76%。主要开销来自对 2.1GB TinyStories 文本按 `<|endoftext|>` 边界流式切分、
 UTF-8 解码、GPT-2 正则预分词，以及跨进程汇总 `Counter[bytes]`。实际 BPE merge 训练阶段耗时
-`14.621` 秒，序列化耗时只有 `0.035` 秒，因此当前瓶颈不是 merge 选择或产物写入，而是大规模文本预分词和计数。
+`10.176` 秒，序列化耗时只有 `0.016` 秒，因此当前瓶颈不是产物写入，而是大规模文本预分词和计数。
 
 最长 token 是 `" responsibility"`，长度为 15 字节。这个结果合理：GPT-2 风格预分词会把英文单词前的空格保留在同一个 pretoken 中，BPE 会优先把高频片段逐步合并成完整词或带前导空格的完整词。TinyStories 中这类常见词被学习成单个 token 符合预期。
 
@@ -128,6 +129,8 @@ UTF-8 解码、GPT-2 正则预分词，以及跨进程汇总 `Counter[bytes]`。
 - 将单进程预分词改为多进程预分词，并在主进程聚合 `Counter[bytes]`。
 - 将原始每轮全量扫描 pair 的 BPE 训练替换为增量 pair 倒排索引。
 - 针对 32k 词表训练中 lazy deletion heap stale entries 过多的问题，定期重建堆。
+- 针对 OWT 早期高频 merge 影响大量 pretoken 的问题，只更新合并前后发生变化的 pair 计数，避免对整条 pretoken 的所有 pair 反复 remove/add 和 `heappush`。
+- 合并 token 时同步统计合并后的相邻 pair，避免额外扫描新 token 序列。
 - 新增进程树 RSS 采样、最长 token 统计、JSON 序列化和 tqdm 训练进度条。
 
 推荐在本机用 9 个 workers 运行：
@@ -146,6 +149,12 @@ uv run python cs336_basics/Part2/train_bpe_expts_owt.py \
 - `pretokenization`：按已处理字节数显示预分词进度。
 - `bpe_merges`：按已完成 merge 数显示 BPE 训练进度，并周期性显示 `pair_types`、`heap_entries` 和已耗时。
 
+如果 `bpe_merges` 进度条里 `heap_entries` 明显大于 `pair_types` 很多，可以调低堆重建阈值，让脚本更频繁清理 stale heap entries：
+
+```sh
+--heap-rebuild-multiplier 2
+```
+
 如果要关闭进度条，可以加上：
 
 ```sh
@@ -157,6 +166,25 @@ uv run python cs336_basics/Part2/train_bpe_expts_owt.py \
 - `artifacts/owt_bpe/vocab.json`：词表，按 token id 存储 token 的十六进制表示、UTF-8 检视文本和字节长度。
 - `artifacts/owt_bpe/merges.json`：merge 列表，按生成顺序存储左右 token。
 - `artifacts/owt_bpe/summary.json`：训练参数、资源占用、最长 token 和耗时统计。
+
+本机 9 workers 完整训练实测结果：
+
+```text
+vocab_size=32000
+merges=31743
+total_seconds=1113.659
+pretokenization_seconds=252.361
+bpe_training_seconds=861.191
+serialization_seconds=0.091
+peak_rss_mb=6677.4
+unique_pretokens=6601892
+total_pretokens=2471753092
+longest_token=id=25836 bytes=64 utf8='----------------------------------------------------------------'
+```
+
+训练总耗时约 18.56 分钟，峰值 RSS 约 6.52 GiB，满足“不超过 12 小时、100GB RAM、无 GPU”的资源要求。
+
+最长 token 是 64 个连续的 `-`。这个结果合理：OpenWebText 来自网页文本，包含大量 Markdown 分隔线、论坛/邮件引用分隔符、表格边界、日志或模板文本。连续 `-` 这种模式结构高度重复，BPE 会自然地按 `-`、`--`、`----` 等路径逐步合并成更长 token。它不包含 `<|endoftext|>`，也不是跨文档拼接出来的 token，说明 special token 边界处理符合预期。
 
 训练完成后，可以查看最长 token：
 
