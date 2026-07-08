@@ -266,3 +266,20 @@ uv run python cs336_basics/Part2/tokenizer_experiments.py \
 ```
 
 uint16最大可以表示65535，而两个tokenizer词表的最大大小为10000和32000，都小于uint16的上限。而uint16只需要int32一半的大小，可以显著减少磁盘和内存占用，且无损保存全部token id。
+
+### Problem(linear)
+
+源码见[linear.py](Part3/linear.py)。运行结果如下
+```text
+mac $makima: ~/Desktop/code/python projects/stf_course/assignment1-basics on main ≡ ❯ uv run pytest -k test_linear                                   71.97% 11/16GB
+=============================== test session starts ===============================
+platform darwin -- Python 3.13.13, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/makima/Desktop/code/python projects/stf_course/assignment1-basics
+configfile: pyproject.toml
+plugins: jaxtyping-0.3.9, timeout-2.4.0
+collected 49 items / 48 deselected / 1 selected
+
+tests/test_model.py::test_linear PASSED
+
+======================== 1 passed, 48 deselected in 0.07s =========================
+```

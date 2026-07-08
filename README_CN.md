@@ -537,3 +537,30 @@ OpenWebText dev:
 `uint16` 合适是因为两个 tokenizer 的词表大小分别是 **10,000** 和 **32,000**，最大 token id 都小于
 `uint16` 能表示的上限 **65,535**。相比 `int32`，`uint16` 可以把 tokenized dataset 的磁盘和内存占用减半，
 同时仍能无损保存所有 token id。
+
+## Part 3：Linear 模块实现记录
+
+已完成 `linear` 任务，相关改动如下：
+
+- 在 `cs336_basics/Part3/linear.py` 中实现 `Linear` 类，继承 `torch.nn.Module`。
+- 线性层不包含 bias 参数。
+- 权重参数命名为 `weight`，通过 `nn.Parameter` 存储，形状为 `(out_features, in_features)`，即按 `W` 存储，不存 `W.T`。
+- 初始化使用 `torch.nn.init.trunc_normal_`，标准差为 `sqrt(2 / (in_features + out_features))`，截断范围为 `[-3 * std, 3 * std]`。
+- `forward` 使用 `torch.matmul(x, self.weight.transpose(-2, -1))`，支持任意 batch 维度，并只对输入最后一维做线性变换。
+- 未使用 `torch.nn.Linear` 或 `torch.nn.functional.linear`。
+- 在 `tests/adapters.py` 中实现 `run_linear`，创建 `Linear` 模块后使用 `load_state_dict({"weight": weights})` 加载测试给定权重。
+- 为 `linear.py` 补充了中文 docstring 和关键中文注释，说明权重布局、初始化和 forward 行为。
+
+验证命令：
+
+```sh
+uv run pytest -k test_linear
+uv run ruff check cs336_basics/Part3/linear.py tests/adapters.py
+```
+
+验证结果：
+
+```text
+tests/test_model.py::test_linear PASSED
+All checks passed!
+```
