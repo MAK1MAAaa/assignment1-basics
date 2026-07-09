@@ -642,3 +642,29 @@ uv run ruff check cs336_basics/Part3/positionwise_feedforward.py tests/adapters.
 tests/test_model.py::test_swiglu PASSED
 All checks passed!
 ```
+
+## Part 3：RoPE 模块实现记录
+
+已完成 `rope` 任务，相关改动如下：
+
+- 在 `cs336_basics/Part3/rotary_positional_embedding.py` 中实现 `RotaryPositionalEmbedding` 类，继承 `torch.nn.Module`。
+- 构造函数预计算形状为 `(max_seq_len, d_k / 2)` 的 `cos` 和 `sin` 表，并通过 `register_buffer(..., persistent=False)` 保存。
+- 频率使用 `theta ** (-dim_indices / d_k)`，其中 `dim_indices = 0, 2, 4, ...`。
+- `forward` 根据 `token_positions` 索引预计算表，并支持输入 `x` 具有任意 batch-like 维度。
+- 当 `x` 比 `token_positions` 多出中间 batch/head 维度时，会在 sequence 维之前补 singleton 维度以完成广播。
+- 对最后一维按相邻二元组执行旋转：`(x_even, x_odd) -> (x_even * cos - x_odd * sin, x_even * sin + x_odd * cos)`。
+- 在 `tests/adapters.py` 中实现 `run_rope`，创建 `RotaryPositionalEmbedding` 后直接调用模块。
+
+验证命令：
+
+```sh
+uv run pytest -k test_rope
+uv run ruff check cs336_basics/Part3/rotary_positional_embedding.py tests/adapters.py
+```
+
+验证结果：
+
+```text
+tests/test_model.py::test_rope PASSED
+All checks passed!
+```

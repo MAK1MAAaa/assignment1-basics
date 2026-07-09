@@ -338,3 +338,22 @@ tests/test_model.py::test_swiglu PASSED
 
 ======================== 1 passed, 48 deselected in 0.05s =========================
 ```
+
+### Problem(rope)
+
+源码见[rope.py](Part3/rope.py)。运行结果如下
+
+```text
+mac $makima: ~/Desktop/code/python projects/stf_course/assignment1-basics on main ≡ ❯ uv run pytest -k test_rope                                     69.01% 11/16GB
+
+=============================== test session starts ===============================
+platform darwin -- Python 3.13.13, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/makima/Desktop/code/python projects/stf_course/assignment1-basics
+configfile: pyproject.toml
+plugins: jaxtyping-0.3.9, timeout-2.4.0
+collected 49 items / 48 deselected / 1 selected
+
+tests/test_model.py::test_rope PASSED
+
+======================== 1 passed, 48 deselected in 0.04s =========================
+```
