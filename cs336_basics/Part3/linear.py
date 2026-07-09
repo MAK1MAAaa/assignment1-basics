@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 
 import torch
+from einops import einsum
 from torch import nn
 
 
@@ -39,4 +40,4 @@ class Linear(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # 支持任意 batch 维度，只要求输入最后一维等于 in_features。
-        return torch.matmul(x, self.weight.transpose(-2, -1))
+        return einsum(x, self.weight, "... in_features, out_features in_features -> ... out_features")

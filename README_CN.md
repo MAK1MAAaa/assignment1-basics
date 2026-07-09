@@ -546,7 +546,7 @@ OpenWebText dev:
 - 线性层不包含 bias 参数。
 - 权重参数命名为 `weight`，通过 `nn.Parameter` 存储，形状为 `(out_features, in_features)`，即按 `W` 存储，不存 `W.T`。
 - 初始化使用 `torch.nn.init.trunc_normal_`，标准差为 `sqrt(2 / (in_features + out_features))`，截断范围为 `[-3 * std, 3 * std]`。
-- `forward` 使用 `torch.matmul(x, self.weight.transpose(-2, -1))`，支持任意 batch 维度，并只对输入最后一维做线性变换。
+- `forward` 使用 `einops.einsum` 显式表达最后一维 `in_features` 与权重相乘，支持任意 batch 维度，输出最后一维为 `out_features`。
 - 未使用 `torch.nn.Linear` 或 `torch.nn.functional.linear`。
 - 在 `tests/adapters.py` 中实现 `run_linear`，创建 `Linear` 模块后使用 `load_state_dict({"weight": weights})` 加载测试给定权重。
 - 为 `linear.py` 补充了中文 docstring 和关键中文注释，说明权重布局、初始化和 forward 行为。
@@ -597,7 +597,7 @@ All checks passed!
 
 - 在 `cs336_basics/Part3/rmsnorm.py` 中实现 `RMSNorm` 类，继承 `torch.nn.Module`。
 - 模块包含一个可学习缩放参数 `weight`，通过 `nn.Parameter` 存储，形状为 `(d_model,)`，初始值为全 1。
-- `forward` 会先把输入转成 `torch.float32`，再沿最后一维计算 `rsqrt(mean(x^2) + eps)`。
+- `forward` 会先把输入转成 `torch.float32`，再使用 `einops.reduce` 沿最后一维计算 `rsqrt(mean(x^2) + eps)`。
 - 归一化后乘以 `weight`，最后转回输入张量的原始 dtype。
 - 未使用 PyTorch 内置 layer norm 或其他归一化模块。
 - 在 `tests/adapters.py` 中实现 `run_rmsnorm`，创建 `RMSNorm` 模块后使用 `load_state_dict({"weight": weights})` 加载测试给定权重。

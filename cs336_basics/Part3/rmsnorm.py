@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import torch
+from einops import reduce
 from torch import nn
 
 
@@ -32,7 +33,8 @@ class RMSNorm(nn.Module):
         original_dtype = x.dtype
         x_float = x.to(torch.float32)
 
-        rms = torch.rsqrt(torch.mean(x_float.square(), dim=-1, keepdim=True) + self.eps)
+        mean_square = reduce(x_float.square(), "... d_model -> ... 1", "mean")
+        rms = torch.rsqrt(mean_square + self.eps)
         normalized = x_float * rms
         scaled = normalized * self.weight.to(torch.float32)
 
