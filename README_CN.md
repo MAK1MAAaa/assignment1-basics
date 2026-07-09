@@ -668,3 +668,27 @@ uv run ruff check cs336_basics/Part3/rotary_positional_embedding.py tests/adapte
 tests/test_model.py::test_rope PASSED
 All checks passed!
 ```
+
+## Part 3：Softmax 函数实现记录
+
+已完成 `softmax` 任务，相关改动如下：
+
+- 在 `cs336_basics/Part3/softmax.py` 中实现 `softmax(x, dim)` 函数。
+- 函数支持对任意输入张量的指定维度执行 softmax。
+- 为保证数值稳定，先减去目标维度上的最大值，再执行 `torch.exp`。
+- 使用 `keepdim=True` 保留目标维度，确保归一化分母可以按原形状正确广播。
+- 在 `tests/adapters.py` 中实现 `run_softmax`，直接转发到自定义 `softmax` 函数。
+
+验证命令：
+
+```sh
+uv run pytest -k test_softmax_matches_pytorch
+uv run ruff check cs336_basics/Part3/softmax.py tests/adapters.py
+```
+
+验证结果：
+
+```text
+tests/test_nn_utils.py::test_softmax_matches_pytorch PASSED
+All checks passed!
+```
