@@ -590,3 +590,55 @@ uv run ruff check cs336_basics/Part3/embedding.py tests/adapters.py
 tests/test_model.py::test_embedding PASSED
 All checks passed!
 ```
+
+## Part 3：RMSNorm 模块实现记录
+
+已完成 `rmsnorm` 任务，相关改动如下：
+
+- 在 `cs336_basics/Part3/rmsnorm.py` 中实现 `RMSNorm` 类，继承 `torch.nn.Module`。
+- 模块包含一个可学习缩放参数 `weight`，通过 `nn.Parameter` 存储，形状为 `(d_model,)`，初始值为全 1。
+- `forward` 会先把输入转成 `torch.float32`，再沿最后一维计算 `rsqrt(mean(x^2) + eps)`。
+- 归一化后乘以 `weight`，最后转回输入张量的原始 dtype。
+- 未使用 PyTorch 内置 layer norm 或其他归一化模块。
+- 在 `tests/adapters.py` 中实现 `run_rmsnorm`，创建 `RMSNorm` 模块后使用 `load_state_dict({"weight": weights})` 加载测试给定权重。
+- 为 `rmsnorm.py` 补充了中文 docstring 和关键中文注释，说明参数含义、float32 upcast 和输出 dtype 恢复行为。
+
+验证命令：
+
+```sh
+uv run pytest -k test_rmsnorm
+uv run ruff check cs336_basics/Part3/rmsnorm.py tests/adapters.py
+```
+
+验证结果：
+
+```text
+tests/test_model.py::test_rmsnorm PASSED
+All checks passed!
+```
+
+## Part 3：SwiGLU FFN 模块实现记录
+
+已完成 `positionwise_feedforward` 任务，相关改动如下：
+
+- 在 `cs336_basics/Part3/positionwise_feedforward.py` 中实现 `SwiGLU` 类，继承 `torch.nn.Module`。
+- 模块由三个无 bias 的 `Linear` 子层组成：`w1: d_model -> d_ff`、`w3: d_model -> d_ff`、`w2: d_ff -> d_model`。
+- 当未显式传入 `d_ff` 时，默认取 `ceil((8 / 3 * d_model) / 64) * 64`，保证 hidden 维度是 64 的倍数。
+- `forward` 实现公式为 `w2(SiLU(w1(x)) * w3(x))`。
+- SiLU 使用 `gate * torch.sigmoid(gate)` 显式实现，未使用 `torch.nn.functional.silu`。
+- 在 `tests/adapters.py` 中实现 `run_swiglu`，创建 `SwiGLU` 模块后使用 `load_state_dict` 加载 `w1.weight`、`w2.weight`、`w3.weight`。
+- 为 `positionwise_feedforward.py` 补充了中文注释，说明默认 `d_ff` 计算、三层投影结构和 SiLU/GLU 组合方式。
+
+验证命令：
+
+```sh
+uv run pytest -k test_swiglu
+uv run ruff check cs336_basics/Part3/positionwise_feedforward.py tests/adapters.py
+```
+
+验证结果：
+
+```text
+tests/test_model.py::test_swiglu PASSED
+All checks passed!
+```
