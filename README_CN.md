@@ -564,3 +564,29 @@ uv run ruff check cs336_basics/Part3/linear.py tests/adapters.py
 tests/test_model.py::test_linear PASSED
 All checks passed!
 ```
+
+## Part 3：Embedding 模块实现记录
+
+已完成 `embedding` 任务，相关改动如下：
+
+- 在 `cs336_basics/Part3/embedding.py` 中实现 `Embedding` 类，继承 `torch.nn.Module`。
+- embedding matrix 命名为 `weight`，通过 `nn.Parameter` 存储，形状为 `(num_embeddings, embedding_dim)`，其中 `d_model` 位于最后一维。
+- 初始化使用 `torch.nn.init.trunc_normal_`，参数为 `mean=0.0`、`std=1.0`、`a=-3.0`、`b=3.0`。
+- `forward` 使用 `self.weight[token_ids]` 执行 embedding lookup，输出形状为 `token_ids.shape + (embedding_dim,)`。
+- 未使用 `torch.nn.Embedding` 或 `torch.nn.functional.embedding`。
+- 在 `tests/adapters.py` 中实现 `run_embedding`，创建 `Embedding` 模块后使用 `load_state_dict({"weight": weights})` 加载测试给定权重。
+- 为 `embedding.py` 补充了中文 docstring 和关键中文注释，说明权重布局、初始化和 lookup 行为。
+
+验证命令：
+
+```sh
+uv run pytest -k test_embedding
+uv run ruff check cs336_basics/Part3/embedding.py tests/adapters.py
+```
+
+验证结果：
+
+```text
+tests/test_model.py::test_embedding PASSED
+All checks passed!
+```
