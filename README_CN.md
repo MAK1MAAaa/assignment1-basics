@@ -705,3 +705,18 @@ uv run ruff check cs336_basics/Part3/multihead_self_attention.py tests/adapters.
 uv run pytest tests/test_model.py::test_multihead_self_attention_with_rope
 uv run ruff check cs336_basics/Part3/multihead_self_attention_with_rope.py tests/adapters.py
 ```
+
+## Part 3：Transformer Block 实现记录
+
+已完成 `transformer_block` 任务，相关改动如下：
+
+- 新增 [transformer_block.py](./cs336_basics/Part3/transformer_block.py)，实现带 RoPE 的 pre-norm Transformer block。
+- 第一个子层先执行 RMSNorm，再进行因果多头自注意力（Q/K 使用 RoPE），最后与原始输入进行残差相加。
+- 第二个子层先对第一次残差结果执行 RMSNorm，再经 SwiGLU 前馈网络，并进行第二次残差相加。
+- 在 `tests/adapters.py` 中实现 `run_transformer_block`，按参考实现的状态字典键加载权重。
+
+验证命令：
+
+```sh
+uv run pytest -k test_transformer_block
+```
