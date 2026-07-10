@@ -529,3 +529,25 @@ tests/test_nn_utils.py::test_cross_entropy PASSED
 
 ======================== 1 passed, 48 deselected in 0.06s =========================
 ```
+
+### Problem(learning_rate_tuning)
+
+学习率`1e1`的loss稳定且较快下降；`1e2`在第一步基本不变后迅速降至接近零。学习率`1e3`则明显发散，loss在10次迭代内从约`3e1`增长到约`3e18`。
+
+### Problem(adamw)
+
+源码见[adamw.py](Part4/adamw.py)。运行结果如下
+
+```text
+mac $makima: ~/Desktop/code/python projects/stf_course/assignment1-basics on main ↑1 ❯ uv run pytest -k test_adamw                                   66.11% 10/16GB
+=============================== test session starts ===============================
+platform darwin -- Python 3.13.13, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/makima/Desktop/code/python projects/stf_course/assignment1-basics
+configfile: pyproject.toml
+plugins: jaxtyping-0.3.9, timeout-2.4.0
+collected 49 items / 48 deselected / 1 selected
+
+tests/test_optimizer.py::test_adamw PASSED
+
+======================== 1 passed, 48 deselected in 0.47s =========================
+```

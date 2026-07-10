@@ -751,3 +751,19 @@ uv run pytest -k test_transformer_lm
 ```sh
 uv run pytest -k test_cross_entropy
 ```
+
+## Part 4：AdamW 实现记录
+
+已完成 `adamw` 任务，相关改动如下：
+
+- 新增 [adamw.py](./cs336_basics/Part4/adamw.py)，实现继承 `torch.optim.Optimizer` 的 `AdamW` 优化器。
+- 支持学习率、`betas`、`eps` 与解耦 weight decay 超参数，并对其取值进行校验。
+- 使用每个参数对应的 `self.state` 保存迭代次数、一阶矩估计 `exp_avg` 与二阶矩估计 `exp_avg_sq`。
+- 每个更新先应用解耦 weight decay，再计算偏差校正后的 Adam 自适应更新；不支持稀疏梯度。
+- 在 `tests/adapters.py` 中实现 `get_adamw_cls`，返回自定义 `AdamW` 类。
+
+验证命令：
+
+```sh
+uv run pytest -k test_adamw
+```
