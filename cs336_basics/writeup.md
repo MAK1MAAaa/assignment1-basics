@@ -551,3 +551,168 @@ tests/test_optimizer.py::test_adamw PASSED
 
 ======================== 1 passed, 48 deselected in 0.47s =========================
 ```
+
+### Problem(adamw_accounting)
+
+#### (a)
+
+模型参数量为：
+
+$$
+P=2VD+L(4D^2+3DD_{ff}+2D)+D
+$$
+
+代入$D_{ff}=\frac{8}{3}D$后：
+
+$$
+P=2VD+L(12D^2+2D)+D
+$$
+
+内存分解：
+
+| 组成                                            | 元素数 |       内存 |
+| ----------------------------------------------- | -----: | ---------: |
+| Parameters                                      |    $P$ | $4P$ bytes |
+| Gradients                                       |    $P$ | $4P$ bytes |
+| AdamW optimizer state (`exp_avg`、`exp_avg_sq`) |   $2P$ | $8P$ bytes |
+| Activations                                     |    $A$ | $4A$ bytes |
+
+每个Transformer block的activation元素数为：
+
+$$
+\begin{aligned}
+A_{\text{block}}
+&= \underbrace{2BTD}_{\text{两个 RMSNorm}}
++ \underbrace{(3BTD+2BHT^2+2BTD)}_{\text{QKV、attention score、softmax、PV、output projection}} \\
+&\quad + \underbrace{(4BTD_{ff}+BTD)}_{\text{W1、W3、SiLU、逐元素乘积、W2}} \\
+&= 8BTD + 4BTD_{ff} + 2BHT^2
+\end{aligned}
+$$
+
+因此总activation元素数为：
+
+$$
+A=L(8BTD+4BTD_{ff}+2BHT^2)+BTD+BTV+BT
+$$
+
+其中最后三项依次对应final RMSNorm、LM head logits，以及cross-entropy的逐token loss；最终reduction为标量，不影响主导项。
+
+总 peak memory：
+
+$$
+M_{\text{peak}}=16P+4A\ \text{bytes}
+$$
+
+#### (b)
+
+使用：
+
+$$
+V=50,257,\quad T=1,024,\quad L=48,\quad D=1,600,\quad H=25,\quad D_{ff}=4,266.\overline{6}
+$$
+
+参数量：
+
+$$
+P=1,635,537,600
+$$
+
+内存分解：
+
+| 组成        |                内存 |
+| ----------- | ------------------: |
+| Parameters  |            6.542 GB |
+| Gradients   |            6.542 GB |
+| AdamW state |           13.084 GB |
+| Activations | $16.151 \cdot B$ GB |
+
+因此：
+
+$$
+M_{\text{peak}}(B)=16.151B+26.169\ \text{GB}
+$$
+
+按 80 GB 显存计算：
+
+$$
+B_{\max}=
+\left\lfloor
+\frac{80-26.169}{16.151}
+\right\rfloor
+=3
+$$
+
+`B=3`时约占用`74.62 GB`，而`B=4`时约为`90.77 GB`，超过`80 GB`。
+
+#### (c)
+
+一次前向传播的主要矩阵乘法 FLOPs 为：
+
+$$
+F_{\text{forward}}
+=
+B\left[
+L\left(8TD^2+4T^2D+6TDD_{ff}\right)
++2TDV
+\right]
+$$
+
+代入 $D_{ff}=\frac{8}{3}D$：
+
+$$
+F_{\text{forward}}
+=
+B\left[
+L\left(24TD^2+4T^2D\right)
++2TDV
+\right]
+$$
+
+AdamW的每个参数更新包含weight decay、一阶矩、二阶矩、偏差校正及自适应更新，约为`14P`个逐元素操作。因此，包含前向、反向和优化器更新的一次训练step为：
+
+$$
+F_{\text{step}}
+\approx
+3F_{\text{forward}}+14P
+$$
+
+这里采用反向传播FLOPs为前向传播两倍的近似；`14P`相比大规模矩阵乘法通常可以忽略。
+
+#### (d)
+
+对于batch size为1024的GPT-2 XL：
+
+$$
+F_{\text{forward,batch}}
+=
+3.5909\times10^{15}\ \text{FLOPs}
+$$
+
+$$
+F_{\text{step}}
+\approx
+1.0773\times10^{16}\ \text{FLOPs}
+$$
+
+H100 在 50% MFU 下的有效吞吐量为：
+
+$$
+0.5\times495=247.5\ \text{TFLOPs/s}
+$$
+
+训练 400,000 steps 所需时间为：
+
+$$
+\frac{400,000\times1.0773\times10^{16}}
+{247.5\times10^{12}}
+=
+1.7410\times10^7\ \text{s}
+\approx
+4,836.2\ \text{hours}
+\approx
+201.5\ \text{days}
+
+
+$$
+
+这是纯计算吞吐量估计。
