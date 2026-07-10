@@ -736,3 +736,18 @@ uv run pytest -k test_transformer_block
 ```sh
 uv run pytest -k test_transformer_lm
 ```
+
+## Part 4：Cross-Entropy 实现记录
+
+已完成 `cross_entropy` 任务，相关改动如下：
+
+- 在 [cross_entropy.py](./cs336_basics/Part4/cross_entropy.py) 中实现 `cross_entropy(logits, targets)`。
+- 输入 logits 支持形状 `(..., vocab_size)`，targets 支持对应的任意 batch-like 维度 `(...)`，并对所有样本损失取平均。
+- 计算前减去每个样本的最大 logit，避免指数运算上溢；直接计算 `log(sum(exp(logits))) - target_logit`，避免构造完整的 log-softmax 张量。
+- 在 `tests/adapters.py` 中实现 `run_cross_entropy`，直接调用该函数。
+
+验证命令：
+
+```sh
+uv run pytest -k test_cross_entropy
+```
