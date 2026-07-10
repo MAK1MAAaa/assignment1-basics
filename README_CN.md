@@ -767,3 +767,19 @@ uv run pytest -k test_cross_entropy
 ```sh
 uv run pytest -k test_adamw
 ```
+
+## Part 4：Cosine Learning Rate Schedule 实现记录
+
+已完成 `learning_rate_schedule` 任务，相关改动如下：
+
+- 新增 [learning_rate_schedule.py](./cs336_basics/Part4/learning_rate_schedule.py)，实现 `get_lr_cosine_schedule`。
+- 在 `t < warmup_iters` 区间内从零线性增长到 `max_learning_rate`。
+- 在 `warmup_iters <= t <= cosine_cycle_iters` 区间内按 cosine annealing 平滑衰减到 `min_learning_rate`。
+- 在 annealing 完成后保持 `min_learning_rate`，并校验迭代次数、边界与学习率参数。
+- 在 `tests/adapters.py` 中实现 `run_get_lr_cosine_schedule`，直接调用调度函数。
+
+验证命令：
+
+```sh
+uv run pytest -k test_get_lr_cosine_schedule
+```

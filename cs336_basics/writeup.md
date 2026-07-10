@@ -716,3 +716,21 @@ $$
 $$
 
 这是纯计算吞吐量估计。
+
+### Problem(learning_rate_schedule)
+
+源码见[learning_rate_schedule.py](Part4/learning_rate_schedule.py)。运行结果如下
+
+```text
+mac $makima: ~/Desktop/code/python projects/stf_course/assignment1-basics on main ↑3 ❯ uv run pytest -k test_get_lr_cosine_schedule                  66.05% 10/16GB
+=============================== test session starts ===============================
+platform darwin -- Python 3.13.13, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/makima/Desktop/code/python projects/stf_course/assignment1-basics
+configfile: pyproject.toml
+plugins: jaxtyping-0.3.9, timeout-2.4.0
+collected 49 items / 48 deselected / 1 selected
+
+tests/test_optimizer.py::test_get_lr_cosine_schedule PASSED
+
+======================== 1 passed, 48 deselected in 0.05s =========================
+```
