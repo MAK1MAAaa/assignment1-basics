@@ -783,3 +783,18 @@ uv run pytest -k test_adamw
 ```sh
 uv run pytest -k test_get_lr_cosine_schedule
 ```
+
+## Part 4：Gradient Clipping 实现记录
+
+已完成 `gradient_clipping` 任务，相关改动如下：
+
+- 新增 [gradient_clipping.py](./cs336_basics/Part4/gradient_clipping.py)，实现全局 L2 norm gradient clipping。
+- 跳过没有梯度的参数，对其余梯度的平方和以 float32 累积，并计算全局 L2 norm。
+- 使用题目要求的 `1e-6` epsilon，按 `min(1, max_l2_norm / (norm + epsilon))` 原地缩放梯度。
+- 在 `tests/adapters.py` 中实现 `run_gradient_clipping`，直接调用裁剪函数。
+
+验证命令：
+
+```sh
+uv run pytest -k test_gradient_clipping
+```
