@@ -404,3 +404,22 @@ tests/test_model.py::test_4d_scaled_dot_product_attention PASSED
 
 ======================== 1 passed, 48 deselected in 0.04s =========================
 ```
+
+### Problem(multihead_self_attention)
+
+源码见[multihead_self_attention.py](Part3/multihead_self_attention.py)和[test_multihead_self_attention_with_rope.py](Part3/test_multihead_self_attention_with_rope.py)。运行结果如下
+
+```text
+mac $makima: ~/Desktop/code/python projects/stf_course/assignment1-basics on main ↑1  ?2 ~3 ❯ uv run pytest -k test_multihead_self_attention        65.73% 10/16GB
+=============================== test session starts ===============================
+platform darwin -- Python 3.13.13, pytest-9.0.2, pluggy-1.6.0
+rootdir: /Users/makima/Desktop/code/python projects/stf_course/assignment1-basics
+configfile: pyproject.toml
+plugins: jaxtyping-0.3.9, timeout-2.4.0
+collected 49 items / 47 deselected / 2 selected
+
+tests/test_model.py::test_multihead_self_attention PASSED
+tests/test_model.py::test_multihead_self_attention_with_rope PASSED
+
+======================== 2 passed, 47 deselected in 0.05s =========================
+```

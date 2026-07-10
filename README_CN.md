@@ -672,3 +672,36 @@ uv run pytest -k test_4d_scaled_dot_product_attention
 uv run ruff check cs336_basics/Part3/scaled_dot_product_attention.py tests/adapters.py
 ```
 
+## Part 3：因果多头自注意力实现记录
+
+已完成 `multihead_self_attention` 任务，相关改动如下：
+
+- 新增 [multihead_self_attention.py](./cs336_basics/Part3/multihead_self_attention.py)，实现 `MultiHeadSelfAttention` 模块。
+- 模块使用四个无 bias 的 `Linear` 层，分别完成 Q、K、V 投影及多头拼接后的输出投影。
+- 将 `d_model` 拆分为 `num_heads * d_k`，并通过 `einops.rearrange` 支持任意数量的 batch-like 维度。
+- 在每次前向计算时构造下三角因果 mask，确保第 `i` 个 token 仅能关注位置 `0` 到 `i`。
+- 在 `tests/adapters.py` 中实现 `run_multihead_self_attention`，加载参考权重后调用该模块。
+
+验证命令：
+
+```sh
+uv run pytest -k test_multihead_self_attention
+uv run ruff check cs336_basics/Part3/multihead_self_attention.py tests/adapters.py
+```
+
+## Part 3：带 RoPE 的因果多头自注意力实现记录
+
+已完成 `multihead_self_attention_with_rope` 任务，相关改动如下：
+
+- 新增 [multihead_self_attention_with_rope.py](./cs336_basics/Part3/multihead_self_attention_with_rope.py)，实现 `MultiHeadSelfAttentionWithRoPE` 模块，并复用普通多头注意力的投影层配置和校验逻辑。
+- 每个 head 的维度为 `d_k = d_model / num_heads`；RoPE 仅应用于拆分后的 Q、K，不修改 V。
+- 支持由调用方提供 `token_positions`；未提供时，默认使用当前序列的自然位置编号。
+- 保留二维下三角因果 mask，并依赖广播将其应用到所有 batch-like 维度及 attention heads。
+- 在 `tests/adapters.py` 中实现 `run_multihead_self_attention_with_rope`，加载参考 Q/K/V/output 权重后调用该模块。
+
+验证命令：
+
+```sh
+uv run pytest tests/test_model.py::test_multihead_self_attention_with_rope
+uv run ruff check cs336_basics/Part3/multihead_self_attention_with_rope.py tests/adapters.py
+```
