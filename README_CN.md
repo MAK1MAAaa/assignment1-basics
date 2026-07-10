@@ -720,3 +720,19 @@ uv run ruff check cs336_basics/Part3/multihead_self_attention_with_rope.py tests
 ```sh
 uv run pytest -k test_transformer_block
 ```
+
+## Part 3：Transformer LM 实现记录
+
+已完成 `transformer_lm` 任务，相关改动如下：
+
+- 新增 [transformer_lm.py](./cs336_basics/Part3/transformer_lm.py)，实现完整的因果 Transformer 语言模型。
+- 模型使用 token embedding、`num_layers` 个带 RoPE 的 Transformer block、最终 RMSNorm 与无 bias 的语言模型输出头。
+- 不使用绝对位置编码；每个 Transformer block 的注意力子层使用 RoPE 提供位置信息。
+- 前向计算返回未归一化词表 logits，输入序列长度会校验不超过 `context_length`。
+- 在 `tests/adapters.py` 中实现 `run_transformer_lm`，以参考状态字典的 embedding 权重确定设备与数据类型后加载完整模型权重。
+
+验证命令：
+
+```sh
+uv run pytest -k test_transformer_lm
+```

@@ -19,6 +19,7 @@ from cs336_basics.Part3.rotary_positional_embedding import RotaryPositionalEmbed
 from cs336_basics.Part3.scaled_dot_product_attention import scaled_dot_product_attention
 from cs336_basics.Part3.softmax import softmax
 from cs336_basics.Part3.transformer_block import TransformerBlock
+from cs336_basics.Part3.transformer_lm import TransformerLM
 
 
 def run_linear(
@@ -419,7 +420,20 @@ def run_transformer_lm(
         Float[Tensor, "batch_size sequence_length vocab_size"]: Tensor with the predicted unnormalized
         next-word distribution for each token.
     """
-    raise NotImplementedError
+    embedding_weight = weights["token_embeddings.weight"]
+    model = TransformerLM(
+        vocab_size,
+        context_length,
+        d_model,
+        num_layers,
+        num_heads,
+        d_ff,
+        rope_theta,
+        device=embedding_weight.device,
+        dtype=embedding_weight.dtype,
+    )
+    model.load_state_dict(weights)
+    return model(in_indices)
 
 
 def run_rmsnorm(
