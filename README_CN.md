@@ -558,13 +558,6 @@ uv run pytest -k test_linear
 uv run ruff check cs336_basics/Part3/linear.py tests/adapters.py
 ```
 
-验证结果：
-
-```text
-tests/test_model.py::test_linear PASSED
-All checks passed!
-```
-
 ## Part 3：Embedding 模块实现记录
 
 已完成 `embedding` 任务，相关改动如下：
@@ -584,12 +577,6 @@ uv run pytest -k test_embedding
 uv run ruff check cs336_basics/Part3/embedding.py tests/adapters.py
 ```
 
-验证结果：
-
-```text
-tests/test_model.py::test_embedding PASSED
-All checks passed!
-```
 
 ## Part 3：RMSNorm 模块实现记录
 
@@ -610,12 +597,6 @@ uv run pytest -k test_rmsnorm
 uv run ruff check cs336_basics/Part3/rmsnorm.py tests/adapters.py
 ```
 
-验证结果：
-
-```text
-tests/test_model.py::test_rmsnorm PASSED
-All checks passed!
-```
 
 ## Part 3：SwiGLU FFN 模块实现记录
 
@@ -634,13 +615,6 @@ All checks passed!
 ```sh
 uv run pytest -k test_swiglu
 uv run ruff check cs336_basics/Part3/positionwise_feedforward.py tests/adapters.py
-```
-
-验证结果：
-
-```text
-tests/test_model.py::test_swiglu PASSED
-All checks passed!
 ```
 
 ## Part 3：RoPE 模块实现记录
@@ -662,13 +636,6 @@ uv run pytest -k test_rope
 uv run ruff check cs336_basics/Part3/rotary_positional_embedding.py tests/adapters.py
 ```
 
-验证结果：
-
-```text
-tests/test_model.py::test_rope PASSED
-All checks passed!
-```
-
 ## Part 3：Softmax 函数实现记录
 
 已完成 `softmax` 任务，相关改动如下：
@@ -686,9 +653,22 @@ uv run pytest -k test_softmax_matches_pytorch
 uv run ruff check cs336_basics/Part3/softmax.py tests/adapters.py
 ```
 
-验证结果：
 
-```text
-tests/test_nn_utils.py::test_softmax_matches_pytorch PASSED
-All checks passed!
+## Part 3：Scaled Dot-Product Attention 实现记录
+
+已完成 `scaled_dot_product_attention` 任务，相关改动如下：
+
+- 新增 [scaled_dot_product_attention.py](./cs336_basics/Part3/scaled_dot_product_attention.py)，实现 `scaled_dot_product_attention(query, key, value, mask=None)`。
+- 通过 `einops.einsum` 计算 `QK^T` 与注意力概率加权后的 `V`，因此可自然支持任意数量的 batch-like 维度。
+- 将 attention score 除以 `sqrt(d_k)`，避免 `d_k` 较大时点积幅度过大而导致 softmax 过于尖锐。
+- 当提供布尔 `mask` 时，`True` 表示可参与注意力计算的位置，`False` 对应 score 会设为 `-inf`，softmax 后概率为零。
+- 在 `tests/adapters.py` 中实现 `run_scaled_dot_product_attention`，直接转发到新增函数。
+
+验证命令：
+
+```sh
+uv run pytest -k test_scaled_dot_product_attention
+uv run pytest -k test_4d_scaled_dot_product_attention
+uv run ruff check cs336_basics/Part3/scaled_dot_product_attention.py tests/adapters.py
 ```
+
